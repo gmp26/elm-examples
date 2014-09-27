@@ -2,6 +2,6 @@ build
 cache
 .cabal-sandbox
 cabal.sandbox.config
-todo/elm_dependencies
-.elmi
-.elmo
+*/elm_dependencies
+*/.elmi
+*/.elmo

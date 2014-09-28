@@ -56,6 +56,15 @@ update event s = case event of
 
 -- DISPLAY
 
+hex : Color -> Float -> Form
+hex col size = ngon 6 size
+               |> filled col  
+
+nhex : Float -> Int -> Form
+nhex size rank = 
+  let h = size * (tf rank)
+  in moveY h <| hex red size
+
 strip : Int -> Shape
 strip n = rect (tf baseUnit) (tf <| n * baseUnit)
 

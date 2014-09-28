@@ -16,7 +16,7 @@ relativeMouse : (Int, Int) -> (Int, Int) -> (Int, Int)
 relativeMouse (ox, oy) (x, y) = (x - ox, -(y - oy))
 
 center : (Int, Int) -> (Int, Int)
-center (w, h) = (div w 2, div h 2)
+center (w, h) = (w // 2, h // 2)
 
 type Vec = (Float, Float)
 
@@ -85,7 +85,7 @@ stepPlay event g =
     case event of
         Tick (t, mp) -> let hit pill = (vecLen <| vecSub g.player.pos pill.pos) < g.player.rad + pill.rad
                             unculled = filter (\{pos} -> snd pos > -hHeight) g.pills
-                            untouched = filter (not . hit) unculled
+                            untouched = filter (not << hit) unculled
                             touched = filter hit unculled
                             hitColor c = not <| isEmpty <| filter (\{col} -> col == c) touched
                             hitBlue = hitColor lightBlue

@@ -1,7 +1,8 @@
 import Mouse
 import Graphics.Input as Input
+import Text
 
--- Version for 0.12.3 server and local copy of elm-runtime --
+-- Version for 0.13 server and local copy of elm-runtime --
 
 
 {-
@@ -21,20 +22,23 @@ buttonSize = 100
 
 txt : Float -> Color -> String -> Element
 txt p clr string =
-    leftAligned . (Text.height (p * buttonSize)) .
-    typeface ["Helvetica Neue","Sans-serif"] . (Text.color clr) <| toText string
+    leftAligned << (Text.height (p * buttonSize)) <<
+    typeface ["Helvetica Neue","Sans-serif"] << (Text.color clr) <| toText string
 
 
 button : Color -> Color -> Int -> Int -> Command -> String -> Element
 button background foreground w h command name =
     let n = min w h
         btn alpha =
-            layers [ color black . container w h middle .
-                     color background . container (w-2) (h-2) middle .
-                     container (2*n) n middle <| txt 0.4 foreground name
-                   , color (rgba 0 0 0 alpha) (spacer w h)
-                   ]
-    in  Input.customButton commands.handle command (btn 0) (btn 0.05) (btn 0.1)
+            layers  [ color black 
+                        << container w h middle
+                        << color background
+                        << container (w-2) (h-2) middle
+                        << container (2*n) n middle 
+                        <| txt 0.4 foreground name
+                    , color (rgba 255 0 0 alpha) (spacer w h)
+                    ]
+    in  Input.customButton commands.handle command (btn 0) (btn 0.05) (btn 0.5)
 
 lightButton : Int -> Int -> Command -> String -> Element
 lightButton = button lightBlue white

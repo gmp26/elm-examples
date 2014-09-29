@@ -3,14 +3,12 @@ module Combo where
 import Mouse
 import Window
 import Random
+import Text as T
 import Debug
 
 -- CONFIG
 
 -- HELPER FUNCTIONS
-
-baseUnit : Int
-baseUnit = 20
 
 tf = toFloat
 
@@ -34,6 +32,7 @@ data State = Start | Play | Over
 type Style = { background : Color }
 
 type Location = (Int, Int)
+type Flocation = (Float, Float)
 
 type Strip a =  { a | length : Int
                 --, pos : Location
@@ -56,25 +55,45 @@ update event s = case event of
 
 -- DISPLAY
 
+-- one coloured hexagon
 hex : Color -> Float -> Form
 hex col size = ngon 6 size
                |> filled col  
 
-nhex : Float -> Int -> Form
-nhex size rank = 
-  let h = size * (tf rank)
-  in moveY h <| hex red size
+-- height of hexagon
+hexH : Float -> Float
+hexH size = size * 1.8
 
-strip : Int -> Shape
-strip n = rect (tf baseUnit) (tf <| n * baseUnit)
+hexW : Float -> Float
+hexW size = size * 2
 
-colorStrip : Color -> Int -> (Float, Float) -> [Form]
-colorStrip col n pos = [move pos <| filled col <| strip n]
+-- the jth coloured hexagon in a strip
+hexAt : Color -> Float -> Int -> Form
+hexAt col size j = ngon 6 size
+              |> filled col
+              |> moveY -(tf j * hexH size)
 
-rod col n pos = 
-  let w = baseUnit
-      h = baseUnit * n
-  in collage w h <| colorStrip col n pos
+-- a vertical strip of hexagons labelled with length
+hexStrip : Color -> Float -> Int -> Form
+hexStrip col size len =
+  let hexunit = hexAt col size
+      label   = len
+                |> show
+                |> T.toText
+                |> T.typeface ["Helvetica Neue", "arial", "sans-serif"]
+                |> T.height size
+                |> T.bold
+                |> T.color white
+                |> T.centered
+                |> toForm
+  in map hexunit [0..(len-1)] ++ [label] |> group
+
+stage : Int -> Int -> Element
+stage w h = collage w h
+            [ hexStrip red 20 5 
+                |> moveY ((tf h - hexH 20) / 2)
+            ]
+
 
 startScreen : Element
 startScreen = [markdown| 
@@ -83,8 +102,8 @@ startScreen = [markdown|
 
 render : (Int, Int) -> State -> Element
 render (w,h) screen = case screen of
-  Start -> startScreen
-  Play ->   container w h midTop <| rod black 3 (0,0) 
+  Start   ->  startScreen
+  Play    ->  stage w h
   otherwise -> asText "Not defined" 
 
 -- PLUMBING

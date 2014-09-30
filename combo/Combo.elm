@@ -4,6 +4,8 @@ import Mouse
 import Window
 import Random
 import Text as T
+import Html
+import Html (Html, node, toElement, (:=), px, text)
 import Debug
 
 -- CONFIG
@@ -74,26 +76,50 @@ hexAt col size j = ngon 6 size
               |> moveY -(tf j * hexH size)
 
 -- a vertical strip of hexagons labelled with length
-hexStrip : Color -> Float -> Int -> Form
-hexStrip col size len =
+hotSpot : Float -> Int -> Form 
+hotSpot size n =  node "div"
+                    [ "className" := "hotspot"]
+  
+                    [ "width"     := px (hexW size)
+                    , "height"    := px (hexH size * tf n)
+                    , "cursor"    := "pointer"
+                    , "color"     := "white"
+                    , "textAlign" := "center"
+                    , "fontSize"  := px 30
+                    , "border"    := "1px solid darkGrey"
+                    , "boxSizing" := "border-box"
+                    ]
+  
+                    [ text <| show n ]
+
+                  |> toElement (round <| hexW size) (round <| hexH size)
+                  |> toForm
+
+
+hexStrip : Color -> Float -> Int -> (Int, Int) -> Form
+hexStrip col size len (w,h) =
   let hexunit = hexAt col size
-      label   = len
-                |> show
-                |> T.toText
-                |> T.typeface ["Helvetica Neue", "arial", "sans-serif"]
-                |> T.height size
-                |> T.bold
-                |> T.color white
-                |> T.centered
-                |> toForm
-  in map hexunit [0..(len-1)] ++ [label] |> group
+      --label   = len
+      --          |> show
+      --          |> T.toText
+      --          |> T.typeface ["Helvetica Neue", "arial", "sans-serif"]
+      --          |> T.height size
+      --          |> T.bold
+      --          |> T.color white
+      --          |> T.centered
+      --          |> toForm
+  in map hexunit [0..(len-1)] ++ [hotSpot size len]
+        |> group
+        |> moveY ((tf h - hexH size) / 2)
 
 stage : Int -> Int -> Element
 stage w h = collage w h
-            [ hexStrip red 20 5 
-                |> moveY ((tf h - hexH 20) / 2)
+            [ hexStrip red 20 6 (w,h)
+            , hexStrip orange 20 4 (w,h)
+                |> move (40, 0)            
+            , hexStrip lightBlue 20 3 (w,h)
+                |> move (-40, 0)
             ]
-
 
 startScreen : Element
 startScreen = [markdown| 

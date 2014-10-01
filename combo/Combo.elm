@@ -75,9 +75,8 @@ hexAt col size j = ngon 6 size
               |> filled col
               |> moveY -(tf j * hexH size)
 
--- a vertical strip of hexagons labelled with length
-hotSpot : Float -> Int -> Form 
-hotSpot size n =  node "div"
+hotSpotElement : Float -> Int -> Element
+hotSpotElement size n = node "div"
                     [ "className" := "hotspot"]
   
                     [ "width"     := px (hexW size)
@@ -93,24 +92,25 @@ hotSpot size n =  node "div"
                     [ text <| show n ]
 
                   |> toElement (round <| hexW size) (round <| hexH size)
+
+-- a vertical strip of hexagons labelled with length in a Form
+hotSpot : Float -> Int -> Form 
+hotSpot size n =  hotSpotElement size n
                   |> toForm
 
 
 hexStrip : Color -> Float -> Int -> (Int, Int) -> Form
 hexStrip col size n (w,h) =
   let hexunit = hexAt col size
-      --label   = n
-      --          |> show
-      --          |> T.toText
-      --          |> T.typeface ["Helvetica Neue", "arial", "sans-serif"]
-      --          |> T.height size
-      --          |> T.bold
-      --          |> T.color white
-      --          |> T.centered
-      --          |> toForm
   in map hexunit [0..(n-1)] ++ [hotSpot size n]
         |> group
         |> moveY ((tf h - hexH size) / 2)
+
+hexStripElement col size n (w,h) = 
+  flow outward [ collage (round <| hexW size) (round <| hexH size)
+                  <| [ hexStrip col size n (w,h) ]
+              , hotSpotElement size n
+              ]
 
 stage : Int -> Int -> Element
 stage w h = collage w h

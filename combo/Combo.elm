@@ -23,17 +23,15 @@ center (w, h) = (w // 2, h // 2)
 -- INPUT
 delta = fps 30
 
-
 --input = (,) <~ lift inSeconds delta
 --             ~ sampleOn delta (lift2 relativeMouse (lift center Window.dimensions) Mouse.position)
-
 -- MODEL
 
 grain : Int
 grain = 24
 
 size : Int -> Float 
-size h = tf (h // (2 * grain))
+size h = tf h / (1.8 * tf grain)
 
 type Strip     =  { color : Color
                   , loc : Location
@@ -45,13 +43,11 @@ type GameState =  [Strip]
 
 data State = Start | Play GameState | Over
 
-type Location = (Int, Int)
+type Location = (Int, Int) 
 
-type LaunchPad = [Int] 
-
-initialGameState =  [ {color = red, loc = (-40,0), n = 3, v = (0,1)}
-                    , {color = green, loc = (0,0), n = 6, v = (0,0)}
-                    , {color = blue, loc = (40,0), n = 5, v = (0,0)}  
+initialGameState =  [ {color = red, loc = (-40,0), n = 3, v = (0,3)}
+                    , {color = green, loc = (0,0), n = 6, v = (0,2)}
+                    , {color = blue, loc = (40,0), n = 5, v = (0,1)}  
                     ]
 
 initialState = Start
@@ -62,7 +58,7 @@ data Event = Drop | GotoPlay
 
 moveStrip : Strip -> Strip
 moveStrip s = 
-  if hitBottom 300 (snd s.loc) 3
+  if hitBottom 1000 (snd s.loc) s.n
     then {s | v <- (0, 0)}
     else {s | loc <- (fst s.loc + fst s.v, snd s.loc + snd s.v) }
 
@@ -106,6 +102,7 @@ hotSpot h n = node "div"
                     , "cursor"    := "pointer"
                     , "color"     := "white"
                     , "textAlign" := "center"
+                    , "verticalAlign" := "middle"
                     , "fontSize"  := px 30
                     , "border"    := "1px solid darkGrey"
                     , "boxSizing" := "border-box"
@@ -131,12 +128,12 @@ hexStripElement : Int -> Color -> Int -> Element
 hexStripElement h col n = 
   let hh = (round <| (hexH h))*n
       hw = (round <| (hexW h))
-  in flow outward  [ collage hw hh
-                    <| [ hexStripForm h col n 
-                          |> moveY  ((tf hh - (hexH h))/ 2)
-                        ]
-                , hotSpot h n
-                ]
+  in flow outward   [ collage hw hh
+                      <|  [ hexStripForm h col n 
+                              |> moveY  ((tf hh - hexH h)/ 2)
+                          ]
+                    , hotSpot h n
+                    ]
 
 positionedStrip : Color -> Int -> (Int, Int) -> Location -> Element
 positionedStrip col n (w, h) (x,y) =
@@ -149,7 +146,7 @@ positionedStrip col n (w, h) (x,y) =
 
 hitBottom : Int -> Int -> Int -> Bool
 hitBottom h y n = 
-  y >= (h - hHEIGHT h n)
+  y >= (h - watch "hHEIGHT" hHEIGHT (watch "h" h) (watch "n" n))
 
 drawStrip : Int -> Int -> Strip -> Element
 drawStrip w h strip = positionedStrip strip.color strip.n (w,h) strip.loc
@@ -164,7 +161,8 @@ startScreen = [markdown|
 
 render : (Int, Int) -> State -> Element
 render (w,h) state =
-  case (watch "state" state) of
+--  case (watch "state" state) of
+  case (state) of
     Start   ->  startScreen
     Play gamestate   ->  stage w h gamestate 
     otherwise -> asText "Not defined" 
@@ -175,7 +173,7 @@ startClick : Signal Event
 startClick = (always GotoPlay)     <~ Mouse.clicks  
 
 dropSignal : Signal Event
-dropSignal = (always Drop) <~ fps 30
+dropSignal = (always Drop) <~ fps 60
 
 playSignal : Signal Event
 playSignal = merge startClick dropSignal

@@ -1,12 +1,12 @@
 module Combo where
 
+import Debug (watch)
 import Mouse
 import Window
 import Random
 import Text as T
 import Html
 import Html (Html, node, toElement, (:=), px, text)
-import Debug
 
 -- CONFIG
 
@@ -55,11 +55,15 @@ initialState = Start
 data Event = Drop | GotoPlay
 
 moveStrip : Strip -> Strip
-moveStrip s = {s | loc <- (fst s.loc + fst s.v, snd s.loc + snd s.v) }
+moveStrip s = 
+  if hitBottom 300 (snd s.loc) 3 20
+    then {s | v <- (0, 0)}
+    else {s | loc <- (fst s.loc + fst s.v, snd s.loc + snd s.v) }
 
 drop : State -> State
-drop s = case s of Play gs
-         -> Play <| map moveStrip gs
+drop s = case s of
+            Play gs -> Play (map moveStrip gs)
+            otherwise -> s
 
 update : Event -> State -> State
 update event s = case event of
@@ -111,6 +115,12 @@ hexStripForm col size n =
   in map hexunit [0..(n-1)]
         |> group
 
+hHEIGHT : Float -> Int -> Int
+hHEIGHT size n = (round <| hexH size)*n
+
+hHeight : Float -> Int -> Float
+hHeight size n = (hexH size)*(tf n)
+
 hexStripElement : Color -> Float -> Int -> Element
 hexStripElement col size n = 
   let hh = (round <| hexH size)*n
@@ -131,6 +141,10 @@ positionedStrip col n (w, h) (x,y) =
   in hexStripElement col 20 n
      |> container w h position
 
+hitBottom : Int -> Int -> Int -> Float -> Bool
+hitBottom h y n size = 
+  y >= (h - hHEIGHT size n)
+
 drawStrip : Int -> Int -> Strip -> Element
 drawStrip w h strip = positionedStrip strip.color strip.n (w,h) strip.loc
 
@@ -143,10 +157,11 @@ startScreen = [markdown|
 |]
 
 render : (Int, Int) -> State -> Element
-render (w,h) state = case state of
-  Start   ->  startScreen
-  Play gamestate   ->  stage w h gamestate 
-  otherwise -> asText "Not defined" 
+render (w,h) state =
+  case (watch "state" state) of
+    Start   ->  startScreen
+    Play gamestate   ->  stage w h gamestate 
+    otherwise -> asText "Not defined" 
 
 -- PLUMBING
 

@@ -97,9 +97,9 @@ hotSpot size n =  node "div"
 
 
 hexStrip : Color -> Float -> Int -> (Int, Int) -> Form
-hexStrip col size len (w,h) =
+hexStrip col size n (w,h) =
   let hexunit = hexAt col size
-      --label   = len
+      --label   = n
       --          |> show
       --          |> T.toText
       --          |> T.typeface ["Helvetica Neue", "arial", "sans-serif"]
@@ -108,7 +108,7 @@ hexStrip col size len (w,h) =
       --          |> T.color white
       --          |> T.centered
       --          |> toForm
-  in map hexunit [0..(len-1)] ++ [hotSpot size len]
+  in map hexunit [0..(n-1)] ++ [hotSpot size n]
         |> group
         |> moveY ((tf h - hexH size) / 2)
 

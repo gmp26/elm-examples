@@ -39,9 +39,12 @@ type Strip     =  { color : Color
                   , v : (Int, Int)
                   }
 
-type GameState =  [Strip]
-
-data State = Start | Play GameState | Over
+type GameState    =   [Strip]
+data ScreenState  =   Start | Play GameState | GameOver
+type State        =   { screen  : ScreenState
+                      , width   : Int
+                      , height  : Int
+                      }
 
 type Location = (Int, Int) 
 
@@ -50,27 +53,33 @@ initialGameState =  [ {color = red, loc = (-40,0), n = 3, v = (0,3)}
                     , {color = blue, loc = (40,0), n = 5, v = (0,1)}  
                     ]
 
-initialState = Start
+initialState =  { screen = Start
+                , width = 320
+                , height = 480
+                }
 
 -- UPDATE
 
-data Event = Drop | GotoPlay
+data Event = Drop | GotoPlay | Resize Int Int
 
-moveStrip : Strip -> Strip
-moveStrip s = 
-  if hitBottom 1000 (snd s.loc) s.n
+moveStrip : Int -> Int -> Strip -> Strip
+moveStrip w h s = 
+  if hitBottom h (snd s.loc) s.n
     then {s | v <- (0, 0)}
     else {s | loc <- (fst s.loc + fst s.v, snd s.loc + snd s.v) }
 
 drop : State -> State
-drop s = case s of
-            Play gs -> Play (map moveStrip gs)
-            otherwise -> s
+drop s =
+  let {screen, width, height} = s
+  in case screen of
+    Play gs -> {s | screen <- Play (map (moveStrip s.width s.height) gs) }
+    otherwise -> s
 
 update : Event -> State -> State
 update event s = case event of
-  GotoPlay      -> Play initialGameState
+  GotoPlay      -> {s | screen <- Play initialGameState}
   Drop          -> drop s
+  Resize w h    -> {s | width <- w, height <- h}
   otherwise     -> initialState
 
 -- DISPLAY
@@ -128,12 +137,12 @@ hexStripElement : Int -> Color -> Int -> Element
 hexStripElement h col n = 
   let hh = (round <| (hexH h))*n
       hw = (round <| (hexW h))
-  in flow outward   [ collage hw hh
-                      <|  [ hexStripForm h col n 
-                              |> moveY  ((tf hh - hexH h)/ 2)
-                          ]
-                    , hotSpot h n
-                    ]
+  in flow outward [ collage hw hh
+                    <|  [ hexStripForm h col n 
+                            |> moveY  ((tf hh - hexH h)/ 2)
+                        ]
+                  , hotSpot h n
+                  ]
 
 positionedStrip : Color -> Int -> (Int, Int) -> Location -> Element
 positionedStrip col n (w, h) (x,y) =
@@ -146,7 +155,7 @@ positionedStrip col n (w, h) (x,y) =
 
 hitBottom : Int -> Int -> Int -> Bool
 hitBottom h y n = 
-  y >= (h - watch "hHEIGHT" hHEIGHT (watch "h" h) (watch "n" n))
+  y >= h - hHEIGHT h n
 
 drawStrip : Int -> Int -> Strip -> Element
 drawStrip w h strip = positionedStrip strip.color strip.n (w,h) strip.loc
@@ -154,18 +163,16 @@ drawStrip w h strip = positionedStrip strip.color strip.n (w,h) strip.loc
 stage : Int -> Int -> GameState -> Element
 stage w h gamestate = layers <| map (drawStrip w h) gamestate 
 
-startScreen : Element
-startScreen = [markdown| 
-# Click to start
-|]
+startScreen : Int -> Int -> Element
+startScreen w h = container w h middle [markdown| # Click to start |]
 
 render : (Int, Int) -> State -> Element
 render (w,h) state =
---  case (watch "state" state) of
-  case (state) of
-    Start   ->  startScreen
-    Play gamestate   ->  stage w h gamestate 
-    otherwise -> asText "Not defined" 
+  let {screen, width, height} = (watch "state" state)
+  in case (screen) of
+    Start           ->  startScreen w h
+    Play gamestate  ->  stage w h gamestate 
+    otherwise       ->  asText "Not defined" 
 
 -- PLUMBING
 
@@ -175,8 +182,14 @@ startClick = (always GotoPlay)     <~ Mouse.clicks
 dropSignal : Signal Event
 dropSignal = (always Drop) <~ fps 60
 
+resizeSignal : Signal Event
+resizeSignal = (\(x,y) -> Resize x y) <~ sampleOn (every second) Window.dimensions
+
 playSignal : Signal Event
-playSignal = merge startClick dropSignal
+playSignal = merges [ startClick 
+                    , dropSignal
+                    , resizeSignal
+                    ]
 
 main : Signal Element
 main = render <~ Window.dimensions ~ foldp update initialState playSignal

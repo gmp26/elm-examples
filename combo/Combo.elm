@@ -33,7 +33,7 @@ grain : Int
 grain = 24
 
 size : Int -> Float 
-size h = tf (h // grain)
+size h = tf (h // (2 * grain))
 
 type Strip     =  { color : Color
                   , loc : Location

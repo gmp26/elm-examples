@@ -29,6 +29,12 @@ delta = fps 30
 
 -- MODEL
 
+grain : Int
+grain = 24
+
+size : Int -> Float 
+size h = tf (h // grain)
+
 type Strip     =  { color : Color
                   , loc : Location
                   , n : Int
@@ -56,7 +62,7 @@ data Event = Drop | GotoPlay
 
 moveStrip : Strip -> Strip
 moveStrip s = 
-  if hitBottom 300 (snd s.loc) 3 20
+  if hitBottom 300 (snd s.loc) 3
     then {s | v <- (0, 0)}
     else {s | loc <- (fst s.loc + fst s.v, snd s.loc + snd s.v) }
 
@@ -67,36 +73,36 @@ drop s = case s of
 
 update : Event -> State -> State
 update event s = case event of
-  GotoPlay    -> Play initialGameState
-  Drop        -> drop s
-  otherwise   -> initialState
+  GotoPlay      -> Play initialGameState
+  Drop          -> drop s
+  otherwise     -> initialState
 
 -- DISPLAY
 
 -- one coloured hexagon
-hex : Color -> Float -> Form
-hex col size = ngon 6 size
+hex : Color -> Int -> Form
+hex col h = ngon 6 (size h)
                |> filled col  
 
 -- height of hexagon
-hexH : Float -> Float
-hexH size = size * 1.8
+hexH : Int -> Float
+hexH h = (size h) * 1.8
 
-hexW : Float -> Float
-hexW size = size * 2
+hexW : Int -> Float
+hexW h = (size h) * 2
 
 -- the jth coloured hexagon in a strip
-hexAt : Color -> Float -> Int -> Form
-hexAt col size j = ngon 6 size
+hexAt : Color -> Int -> Int -> Form
+hexAt col h j = ngon 6 (size h)
               |> filled col
-              |> moveY -(tf j * hexH size)
+              |> moveY -(tf j * (hexH h))
 
-hotSpot : Float -> Int -> Element
-hotSpot size n = node "div"
+hotSpot :  Int -> Int -> Element
+hotSpot h n = node "div"
                     [ "className" := "hotspot"]
   
-                    [ "width"     := px (hexW size)
-                    , "height"    := px (hexH size * tf n)
+                    [ "width"     := px (hexW h)
+                    , "height"    := px ((hexH h) * tf n)
                     , "cursor"    := "pointer"
                     , "color"     := "white"
                     , "textAlign" := "center"
@@ -107,29 +113,29 @@ hotSpot size n = node "div"
   
                     [ text <| show n ]
 
-                  |> toElement (round <| hexW size) (round <| hexH size)
+                  |> toElement (round <| (hexW h)) (round <| (hexH h))
 
-hexStripForm : Color -> Float -> Int -> Form
-hexStripForm col size n =
-  let hexunit = hexAt col size
+hexStripForm : Int -> Color -> Int -> Form
+hexStripForm h col n =
+  let hexunit = hexAt col h
   in map hexunit [0..(n-1)]
         |> group
 
-hHEIGHT : Float -> Int -> Int
-hHEIGHT size n = (round <| hexH size)*n
+hHEIGHT : Int -> Int -> Int
+hHEIGHT h n = (round <| (hexH h))*n
 
-hHeight : Float -> Int -> Float
-hHeight size n = (hexH size)*(tf n)
+hHeight : Int -> Int -> Float
+hHeight h n = (hexH h)*(tf n)
 
-hexStripElement : Color -> Float -> Int -> Element
-hexStripElement col size n = 
-  let hh = (round <| hexH size)*n
-      hw = (round <| hexW size)
+hexStripElement : Int -> Color -> Int -> Element
+hexStripElement h col n = 
+  let hh = (round <| (hexH h))*n
+      hw = (round <| (hexW h))
   in flow outward  [ collage hw hh
-                    <| [ hexStripForm col size n
-                          |> moveY  ((tf hh - hexH size)/ 2)
+                    <| [ hexStripForm h col n 
+                          |> moveY  ((tf hh - (hexH h))/ 2)
                         ]
-                , hotSpot size n
+                , hotSpot h n
                 ]
 
 positionedStrip : Color -> Int -> (Int, Int) -> Location -> Element
@@ -138,12 +144,12 @@ positionedStrip col n (w, h) (x,y) =
     xpos = absolute (x + w // 2)
     ypos = absolute y
     position = midTopAt xpos ypos
-  in hexStripElement col 20 n
+  in hexStripElement h col n
      |> container w h position
 
-hitBottom : Int -> Int -> Int -> Float -> Bool
-hitBottom h y n size = 
-  y >= (h - hHEIGHT size n)
+hitBottom : Int -> Int -> Int -> Bool
+hitBottom h y n = 
+  y >= (h - hHEIGHT h n)
 
 drawStrip : Int -> Int -> Strip -> Element
 drawStrip w h strip = positionedStrip strip.color strip.n (w,h) strip.loc

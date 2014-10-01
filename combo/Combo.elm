@@ -8,22 +8,18 @@ import Text as T
 import Html
 import Html (Html, node, toElement, (:=), px, text)
 
--- CONFIG
-
--- HELPER FUNCTIONS
+-- HELPERS
 
 tf : Int -> Float
 tf = toFloat
 
-relativeMouse : Location -> Location -> Location
-relativeMouse (ox, oy) (x, y) = (x - ox, -(y - oy))
+--relativeMouse : Location -> Location -> Location
+--relativeMouse (ox, oy) (x, y) = (x - ox, -(y - oy))
 
-center : Location -> Location
-center (w, h) = (w // 2, h // 2)
+--center : Location -> Location
+--center (w, h) = (w // 2, h // 2)
 
 -- INPUT
-
-
 
 -- MODEL
 
@@ -124,10 +120,6 @@ hotSpot h n = node "div"
                     , "color"     := "white"
                     , "textAlign" := "center"
                     , "fontSize"  := px << tf <| h // 30
-                    --, "cursor"    := "pointer"
-                    --, "verticalAlign" := "middle"
-                    --, "border"    := "1px solid darkGrey"
-                    --, "boxSizing" := "border-box"
                     ]
   
                     [ text <| show n ]

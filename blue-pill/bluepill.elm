@@ -1,6 +1,7 @@
 import Mouse
 import Window
 import Random
+import Text
 
 -- CONFIG
 speed = 500

@@ -82,6 +82,7 @@ hotSpotElement size n = node "div"
                     [ "width"     := px (hexW size)
                     , "height"    := px (hexH size * tf n)
                     , "cursor"    := "pointer"
+
                     , "color"     := "white"
                     , "textAlign" := "center"
                     , "fontSize"  := px 30
@@ -106,11 +107,6 @@ hexStrip col size n (w,h) =
         |> group
         |> moveY ((tf h - hexH size) / 2)
 
-hexStripElement col size n (w,h) = 
-  flow outward [ collage (round <| hexW size) (round <| hexH size)
-                  <| [ hexStrip col size n (w,h) ]
-              , hotSpotElement size n
-              ]
 
 stage : Int -> Int -> Element
 stage w h = collage w h
@@ -119,7 +115,45 @@ stage w h = collage w h
                 |> move (40, 0)            
             , hexStrip lightBlue 20 3 (w,h)
                 |> move (-40, 0)
+            , hexStrip yellow 20 7 (w,h)
+                |> move (-80, 0)
+            , circle 20
+                |> filled red
             ]
+
+
+hexStripTrimmed : Color -> Float -> Int -> Form
+hexStripTrimmed col size n =
+  let hexunit = hexAt col size
+  in map hexunit [0..(n-1)]
+        |> group
+
+hexStripElement : Color -> Float -> Int -> Element
+hexStripElement col size n = 
+  let hh = (round <| hexH size)*n
+      hw = (round <| hexW size)
+  in flow outward  [ collage hw hh
+                    <| [ hexStripTrimmed col size n
+                          |> moveY  ((tf hh - hexH size)/ 2)
+                        ]
+                , hotSpotElement size n
+                ]
+
+positionStrip : Color -> (Int, Int) -> Location -> Element
+positionStrip col (w, h) (x,y) =
+  let 
+    xpos = absolute x
+    ypos = absolute y
+    position = middleAt xpos ypos
+  in hexStripElement col 20 6
+     |> container w h position
+
+
+stageFromElements : Int -> Int -> Element
+stageFromElements w h =
+  layers [
+    positionStrip orange (w, h) (0,0)
+  ]
 
 startScreen : Element
 startScreen = [markdown| 
@@ -127,14 +161,15 @@ startScreen = [markdown|
 |]
 
 render : (Int, Int) -> State -> Element
-render (w,h) screen = case screen of
+render (w,h) state = case state of
   Start   ->  startScreen
-  Play    ->  stage w h
+  Play    ->  stageFromElements w h --stage w h
   otherwise -> asText "Not defined" 
 
 -- PLUMBING
 
 startClick = (always GotoPlay)     <~ Mouse.clicks  
 
+main : Signal Element
 main = render <~ Window.dimensions ~ foldp update initialState startClick
 --main = asText <~ (relativeMouse <~ (center <~ Window.dimensions) ~ Mouse.position)

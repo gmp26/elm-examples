@@ -12,6 +12,7 @@ import Html (Html, node, toElement, (:=), px, text)
 
 -- HELPER FUNCTIONS
 
+tf : Int -> Float
 tf = toFloat
 
 relativeMouse : Location -> Location -> Location
@@ -21,10 +22,9 @@ center : Location -> Location
 center (w, h) = (w // 2, h // 2)
 
 -- INPUT
-delta = fps 30
 
---input = (,) <~ lift inSeconds delta
---             ~ sampleOn delta (lift2 relativeMouse (lift center Window.dimensions) Mouse.position)
+
+
 -- MODEL
 
 grain : Int
@@ -33,7 +33,8 @@ grain = 24
 size : Int -> Float 
 size h = tf h / (1.8 * tf grain)
 
-type Strip     =  { color : Color
+type Strip     =  { i : Int
+                  , color : Color
                   , loc : Location
                   , n : Int
                   , v : (Int, Int)
@@ -48,9 +49,9 @@ type State        =   { screen  : ScreenState
 
 type Location = (Int, Int) 
 
-initialGameState =  [ {color = red, loc = (-40,0), n = 3, v = (0,3)}
-                    , {color = green, loc = (0,0), n = 6, v = (0,2)}
-                    , {color = blue, loc = (40,0), n = 5, v = (0,1)}  
+initialGameState =  [ {i = -1, color = red, loc = (-40,0), n = 3, v = (0,3)}
+                    , {i = 0, color = green, loc = (0,0), n = 6, v = (0,2)}
+                    , {i = 1, color = blue, loc = (40,0), n = 5, v = (0,1)}  
                     ]
 
 initialState =  { screen = Start
@@ -65,8 +66,10 @@ data Event = Drop | GotoPlay | Resize Int Int
 moveStrip : Int -> Int -> Strip -> Strip
 moveStrip w h s = 
   if hitBottom h (snd s.loc) s.n
-    then {s | v <- (0, 0)}
-    else {s | loc <- (fst s.loc + fst s.v, snd s.loc + snd s.v) }
+    then  { s | v <- (0, 0)
+              , loc <- (fst s.loc, h - s.n*(round <| hexH h))
+          }
+    else  { s | loc <- (fst s.loc + fst s.v, snd s.loc + snd s.v) }
 
 drop : State -> State
 drop s =
@@ -75,11 +78,21 @@ drop s =
     Play gs -> {s | screen <- Play (map (moveStrip s.width s.height) gs) }
     otherwise -> s
 
+-- adjust horizontal separation between strips so it's about the width of a block
+adjustSeparation : Int -> Strip -> Strip
+adjustSeparation h strip =
+  {strip | loc <- (strip.i * (ceiling <| hexW h), snd strip.loc)}
+
 update : Event -> State -> State
 update event s = case event of
   GotoPlay      -> {s | screen <- Play initialGameState}
   Drop          -> drop s
-  Resize w h    -> {s | width <- w, height <- h}
+  Resize w h    -> {s | width <- w
+                        , height <- h
+                        , screen <- case s.screen of
+                            Play gs   -> Play <| map (adjustSeparation h) gs
+                            otherwise -> s.screen 
+                    }
   otherwise     -> initialState
 
 -- DISPLAY
@@ -108,13 +121,13 @@ hotSpot h n = node "div"
   
                     [ "width"     := px (hexW h)
                     , "height"    := px ((hexH h) * tf n)
-                    , "cursor"    := "pointer"
                     , "color"     := "white"
                     , "textAlign" := "center"
-                    , "verticalAlign" := "middle"
-                    , "fontSize"  := px 30
-                    , "border"    := "1px solid darkGrey"
-                    , "boxSizing" := "border-box"
+                    , "fontSize"  := px << tf <| h // 30
+                    --, "cursor"    := "pointer"
+                    --, "verticalAlign" := "middle"
+                    --, "border"    := "1px solid darkGrey"
+                    --, "boxSizing" := "border-box"
                     ]
   
                     [ text <| show n ]
@@ -182,6 +195,7 @@ startClick = (always GotoPlay)     <~ Mouse.clicks
 dropSignal : Signal Event
 dropSignal = (always Drop) <~ fps 60
 
+
 resizeSignal : Signal Event
 resizeSignal = (\(x,y) -> Resize x y) <~ sampleOn (every second) Window.dimensions
 
@@ -193,5 +207,3 @@ playSignal = merges [ startClick
 
 main : Signal Element
 main = render <~ Window.dimensions ~ foldp update initialState playSignal
-
---main = asText <~ (relativeMouse <~ (center <~ Window.dimensions) ~ Mouse.position)

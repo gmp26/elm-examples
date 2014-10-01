@@ -46,8 +46,8 @@ type State        =   { screen  : ScreenState
 type Location = (Int, Int) 
 
 initialGameState =  [ {i = -1, color = red, loc = (-40,0), n = 3, v = (0,3)}
-                    , {i = 0, color = green, loc = (0,0), n = 6, v = (0,2)}
-                    , {i = 1, color = blue, loc = (40,0), n = 5, v = (0,1)}  
+                    , {i = 0, color = green, loc = (0,0), n = 6, v = (0,4)}
+                    , {i = 1, color = blue, loc = (40,0), n = 5, v = (0,5)}  
                     ]
 
 initialState =  { screen = Start
@@ -185,7 +185,7 @@ startClick : Signal Event
 startClick = (always GotoPlay)     <~ Mouse.clicks  
 
 dropSignal : Signal Event
-dropSignal = (always Drop) <~ fps 60
+dropSignal = (always Drop) <~ fps 30
 
 
 resizeSignal : Signal Event

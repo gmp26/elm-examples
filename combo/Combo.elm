@@ -27,7 +27,7 @@ tf = toFloat
 -- MODEL
 
 grain : Int
-grain = 24
+grain = 10
 
 size : Int -> Float 
 size h = tf h / (1.8 * tf grain)
@@ -48,7 +48,7 @@ type State        =   { screen  : ScreenState
 
 type Location = (Int, Int) 
 
-initialGameState =  [ {i = -1, color = red, loc = (-40,0), n = 3, v = (0,3)}
+initialGameState =  [ {i = -1, color = red, loc = (-40,0), n = 3, v = (0,8)}
                     , {i = 0, color = green, loc = (0,0), n = 6, v = (0,4)}
                     , {i = 1, color = blue, loc = (40,0), n = 5, v = (0,5)}  
                     ]
@@ -125,6 +125,8 @@ hotSpot h n = node "div"
                     , "color"     := "white"
                     , "textAlign" := "center"
                     , "fontSize"  := px << tf <| h // 30
+                    , "cursor"    := "pointer"
+                    , "pointerEvents" := "auto"
                     ]
   
                     [ text <| show n ]

@@ -8,6 +8,9 @@ import Text as T
 import Html
 import Html (Html, node, toElement, (:=), px, text)
 
+--watch : String -> a -> a
+--watch _ a = a
+
 -- HELPERS
 
 tf : Int -> Float
@@ -80,16 +83,18 @@ adjustSeparation h strip =
   {strip | loc <- (strip.i * (ceiling <| hexW h), snd strip.loc)}
 
 update : Event -> State -> State
-update event s = case event of
-  GotoPlay      -> {s | screen <- Play initialGameState}
-  Drop          -> drop s
-  Resize w h    -> {s | width <- w
-                        , height <- h
-                        , screen <- case s.screen of
-                            Play gs   -> Play <| map (adjustSeparation h) gs
-                            otherwise -> s.screen 
-                    }
-  otherwise     -> initialState
+update event s = case (watch "events" event) of
+  GotoPlay      ->  {s | screen <- Play initialGameState}
+  Drop          ->  drop s
+  Resize w h    ->  if w /= s.width || h /= s.height then
+                      {s | width <- w
+                          , height <- h
+                          , screen <- case s.screen of
+                              Play gs   -> Play <| map (adjustSeparation h) gs
+                              otherwise -> s.screen 
+                      }
+                    else s
+  otherwise     ->  initialState
 
 -- DISPLAY
 
@@ -181,11 +186,22 @@ render (w,h) state =
 
 -- PLUMBING
 
+{-
+  These snippets hint at how we might go about throttling the drop and resizeSignals.
+  http://share-elm.com/sprout/542d52dbe4b017b21db2f77f
+  http://share-elm.com/sprout/542d51c7e4b017b21db2f77e
+
+  Also, to get a more controlled drop rate, we should calculate each move from the time elapsed
+  since the last drop - i.e. by adding the fps delta to the Drop event.
+
+  And we may need to use `async` for drop so it runs independently of other cpu hogs.
+-}
+
 startClick : Signal Event
-startClick = (always GotoPlay)     <~ Mouse.clicks  
+startClick = (always GotoPlay)  <~ Mouse.clicks  
 
 dropSignal : Signal Event
-dropSignal = (always Drop) <~ fps 30
+dropSignal = (always Drop)      <~ fps 30
 
 
 resizeSignal : Signal Event

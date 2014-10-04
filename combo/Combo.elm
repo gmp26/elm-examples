@@ -69,7 +69,7 @@ data Event = GotoPlay | Launch Int | Drop Int Int
 -- update velocity of a clicked strip, leaving the others untouched
 launch : Int -> Strip -> Strip
 launch clickedIndex s = {s| v   <-  if clickedIndex == s.i
-                                        then (0, 3)
+                                        then (0, 6)
                                         else s.v
                         }
 
@@ -86,7 +86,7 @@ drop : Int -> Int -> State -> State
 drop w h s =
   let {screen, width, height} = s
   in case screen of
-    Play gs     ->  {s| screen  <- Play <| map (moveStrip w h) gs
+    Play gs     ->  {s| screen  <- Play <| map (moveStrip w (h-40)) gs
                     ,   width   <- w
                     ,   height  <- h
                     }

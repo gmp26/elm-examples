@@ -9955,9 +9955,9 @@ function flow(dir,elist) {
     var array = fromList(elist);
     var container = newElement('div');
     var goDir = directionTable[dir];
-    if (goDir == goOut) {
+    //if (goDir == goOut) {
         container.style.pointerEvents = 'none';
-    }
+    //}
     if (needsReversal(dir)) {
         array.reverse();
     }

@@ -17,16 +17,12 @@ unwatch _ a = a
 tf : Int -> Float
 tf = toFloat
 
--- create an element with a given id
---elementWithId : Int -> Element -> Element
---elementWithId s e = 
---    let p = e.props
---        np = {p| id <- s}
---    in {e| props <- np}
-
 -- INPUTS
 startDrop : GI.Input Int
 startDrop = GI.input 0     -- strip 0 is the initial value of the signal
+
+again : GI.Input ()
+again = GI.input ()
 
 -- MODEL
 grain : Int
@@ -177,7 +173,6 @@ positionedStrip col n (w, h) (x,y) =
         position = midTopAt xpos ypos
     in hexStripElement h col n
         |> container w h position
-        |> tag ("tag" ++ (show n))
 
 hitBottom : Int -> Int -> Int -> Bool
 hitBottom h y n = 
@@ -189,8 +184,28 @@ drawStrip w h strip = positionedStrip strip.color strip.n (w,h) strip.loc
 clickableStrip : Int -> Int -> Strip -> Element
 clickableStrip w h strip = GI.clickable startDrop.handle strip.i (drawStrip w h strip)
 
+makeButtons : GameState -> [Element]
+makeButtons gameState = map (\strip -> GI.button startDrop.handle strip.i (show strip.n)) gameState
+
+againButton = GI.button again.handle () "^"
+
+buttonBar : GameState -> Element
+buttonBar gameState = 
+    let launchButtons = makeButtons gameState
+    in flow left 
+        [ flow right <| launchButtons
+        , spacer 10 10
+        , againButton
+        , flow left  <| launchButtons
+        ]
+
 stage : Int -> Int -> GameState -> Element
-stage w h gamestate = flow inward <| map (clickableStrip w h) gamestate 
+stage w h gameState = 
+    let bar = buttonBar gameState
+    in flow down 
+        [ bar
+        , flow inward <| map (clickableStrip w (h - heightOf bar)) gameState
+        ] 
 
 startScreen : Int -> Int -> Element
 startScreen w h = container w h middle [markdown| # Click to start |]

@@ -1,0 +1,229 @@
+module Combo where
+
+import Debug (watch)
+import Mouse
+import Window
+import Random
+import Text as T
+import Html
+import Html (Html, node, toElement, (:=), px, text)
+
+-- CONFIG
+
+-- HELPER FUNCTIONS
+
+tf = toFloat
+
+relativeMouse : Location -> Location -> Location
+relativeMouse (ox, oy) (x, y) = (x - ox, -(y - oy))
+
+center : Location -> Location
+center (w, h) = (w / 2, h / 2)
+
+{-
+ To simplify sizing, we'll convert the physical Window size (Int, Int)
+ to an internal virtual Window of fixed size (vWidth : Float, vHeight : Float). 
+
+ All internal sizes will then be in floats.
+ The internal unit is 1 grain. We'll draw shapes at an internal resolution of 
+ 1 grain to 64px.
+
+ For this app, height is critical. Width can be stretchy. We'll maintain separate
+ horizontal and vertical grains so we can adjust later.
+-}
+
+-- number of grains in the physical window height 
+wGrainHeight : Float
+wGrainHeight = 24 -- hgrains
+
+-- number of grains in the physical window width
+wGrainWidth : Float
+wGrainWidth = 16 -- vgrains
+
+-- 1 grain = 64 virtual pixels. We need this to size canvases internally before scaling.
+-- If we don't have enough virtual pixels, we'll get lousy resolution before scaling.
+grain : Float
+grain = 10 
+
+-- window dimensions in virtual pixels
+vWinHeight : Float
+vWinHeight = wGrainHeight * grain
+
+vWinWidth : Float
+vWinWidth = wGrainWidth * grain
+
+---- physical height to virtual height
+--p2vHeight : Int -> Float
+--p2vHeight h y = y * vWinHeight / tf h
+
+---- physical width to virtual width
+--p2vWidth : Int -> Float
+--p2vWidth w x = x * vWinWidth / tf w
+
+---- virtual height to physical height
+--v2pHeight : Int -> Float
+--v2pHeight h y = y * tf h / vWinHeight
+
+---- virtual width to physical width
+--v2pWidth : Int -> Float
+--v2pWidth w x = x * tf w / vWinWidth
+
+-- INPUT
+delta = fps 30
+
+-- MODEL
+
+
+-- 1 hex radius is 20 grains
+radius : Float 
+radius = 20 * grain
+
+type Strip     =  { color : Color
+                  , loc : Location
+                  , n : Int
+                  , v : (Float, Float)
+                  }
+
+type GameState =  [Strip]
+
+data State = Start | Play GameState | Over
+
+-- internal location
+type Location = (Float, Float) 
+
+initialGameState =  [ {color = red, loc = (-40,0), n = 3, v = (0,3)}
+                    , {color = green, loc = (0,0), n = 6, v = (0,2)}
+                    , {color = blue, loc = (40,0), n = 5, v = (0,1)}  
+                    ]
+
+initialState = Start
+
+-- UPDATE
+
+data Event = Drop | GotoPlay
+
+moveStrip : Strip -> Strip
+moveStrip s = 
+  if hitBottom (snd s.loc) s.n
+    then {s | v <- (0, 0)}
+    else {s | loc <- (fst s.loc + fst s.v, snd s.loc + snd s.v) }
+
+drop : State -> State
+drop s = case s of
+            Play gs -> Play (map moveStrip (watch "gameState" gs))
+            otherwise -> s
+
+update : Event -> State -> State
+update event s = case event of
+  GotoPlay      -> Play initialGameState
+  Drop          -> drop s
+  otherwise     -> initialState
+
+-- DISPLAY
+
+-- one coloured hexagon
+hex : Color -> Form
+hex col = ngon 6 radius
+            |> filled col  
+
+-- height of hexagon
+hexH : Float
+hexH = radius * 1.8
+
+hexW : Float
+hexW = radius * 2
+
+-- the jth coloured hexagon in a strip
+hexAt : Color -> Int -> Form
+hexAt col j = ngon 6 radius
+              |> filled col
+              |> moveY -(tf j * hexH)
+
+hotSpot :  Int -> Element
+hotSpot n = node "div"
+                    [ "className" := "hotspot"]
+  
+                    [ "width"     := px hexW
+                    , "height"    := px (hexH * tf n)
+                    , "cursor"    := "pointer"
+                    , "color"     := "white"
+                    , "textAlign" := "center"
+                    , "verticalAlign" := "middle"
+                    , "fontSize"  := px 30
+                    , "border"    := "1px solid darkGrey"
+                    , "boxSizing" := "border-box"
+                    ]
+  
+                    [ text <| show n ]
+
+                  |> toElement (round <| hexW) (round <| hexH)
+
+hexStripForm : Color -> Int -> Form
+hexStripForm col n =
+  let hexunit = hexAt col
+  in map hexunit [0..(n-1)]
+        |> group
+
+hHeight : Int -> Float
+hHeight n = hexH * (tf n) * grain
+
+hexStripElement : Color -> Int -> Element
+hexStripElement col n = 
+  let hh = (round <| hexH)*n
+      hw = (round <| hexW)
+  in flow outward   [ collage hw hh
+                      <|  [ hexStripForm col n 
+                              |> moveY  ((tf hh - hexH)/ 2)
+                          ]
+                    , hotSpot n
+                    ]
+
+positionedStrip : Color -> Int -> (Float, Float) -> Location -> Element
+positionedStrip col n (w, h) (x,y) =
+
+  let
+    toPos = round >> absolute 
+    xpos =  x + w / 2 |> toPos
+    ypos =  y |> toPos
+    position = midTopAt xpos ypos
+  in hexStripElement col n
+     |> container (round w) (round h) position
+
+hitBottom : Float -> Int -> Bool
+hitBottom y n = 
+  y >=  vWinHeight - hHeight n
+
+drawStrip : Float -> Float -> Strip -> Element
+drawStrip w h strip = positionedStrip strip.color strip.n (w,h) strip.loc
+
+stage : Float -> Float -> GameState -> Element
+stage w h gamestate = layers <| map (drawStrip w h) gamestate 
+
+startScreen : Element
+startScreen = [markdown| 
+# Click to start
+|]
+
+render : (Int, Int) -> State -> Element
+render (w,h) state =
+--  case (watch "state" state) of
+  case (state) of
+    Start           ->  startScreen
+    Play gamestate  ->  stage (vWinWidth * 2) (vWinHeight * 2) gamestate
+    otherwise -> asText "Not defined" 
+
+-- PLUMBING
+
+startClick : Signal Event
+startClick = (always GotoPlay) <~ Mouse.clicks  
+
+dropSignal : Signal Event
+dropSignal = (always Drop) <~ fps 60
+
+playSignal : Signal Event
+playSignal = merge startClick dropSignal
+
+main : Signal Element
+main = render <~ Window.dimensions ~ foldp update initialState playSignal
+
+--main = asText <~ (relativeMouse <~ (center <~ Window.dimensions) ~ Mouse.position)

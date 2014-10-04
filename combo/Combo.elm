@@ -5,8 +5,14 @@ import Mouse
 import Window
 import Random
 import Text as T
-import Html
-import Html (Html, node, toElement, (:=), px, text)
+--import Html
+--import Html.Attributes
+--import Html.Tags (div)
+--import Html (Html, node, toElement, (:=), px, text)
+
+import Html (Html, toElement, style, prop, text)
+import Html.Tags (div, img)
+import Html.Attributes (src, class)
 
 --watch : String -> a -> a
 --watch _ a = a
@@ -116,20 +122,21 @@ hexAt col h j = ngon 6 (size h)
               |> filled col
               |> moveY -(tf j * (hexH h))
 
+px : number -> String
+px x = (show x) ++ "px"  
+
 hotSpot :  Int -> Int -> Element
-hotSpot h n = node "div"
-                    [ "className" := "hotspot"]
-  
-                    [ "width"     := px (hexW h)
-                    , "height"    := px ((hexH h) * tf n)
-                    , "color"     := "white"
-                    , "textAlign" := "center"
-                    , "fontSize"  := px << tf <| h // 30
-                    , "cursor"    := "pointer"
-                    , "pointerEvents" := "auto"
-                    ]
-  
-                    [ text <| show n ]
+hotSpot h n     = div   [ class "hotspot"
+                        , style [ prop "width" (hexW h |> px)
+                                , prop "height" (hexH h * tf n |> px)
+                                , prop "color" "white"
+                                , prop "text-align" "center"
+                                , prop "fontSize" (h // 30 |> px)
+                                , prop "cursor" "pointer"
+                                , prop "pointerEvents" "auto"
+                                ]  
+                        ]
+                        [ text <| show n ]
 
                   |> toElement (round <| (hexW h)) (round <| (hexH h))
 

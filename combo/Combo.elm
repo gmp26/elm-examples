@@ -17,6 +17,13 @@ unwatch _ a = a
 tf : Int -> Float
 tf = toFloat
 
+-- create an element with a given id
+--elementWithId : Int -> Element -> Element
+--elementWithId s e = 
+--    let p = e.props
+--        np = {p| id <- s}
+--    in {e| props <- np}
+
 -- INPUTS
 startDrop : GI.Input Int
 startDrop = GI.input 0     -- strip 0 is the initial value of the signal
@@ -170,6 +177,7 @@ positionedStrip col n (w, h) (x,y) =
         position = midTopAt xpos ypos
     in hexStripElement h col n
         |> container w h position
+        |> tag ("tag" ++ (show n))
 
 hitBottom : Int -> Int -> Int -> Bool
 hitBottom h y n = 
@@ -182,7 +190,7 @@ clickableStrip : Int -> Int -> Strip -> Element
 clickableStrip w h strip = GI.clickable startDrop.handle strip.i (drawStrip w h strip)
 
 stage : Int -> Int -> GameState -> Element
-stage w h gamestate = layers <| map (clickableStrip w h) gamestate 
+stage w h gamestate = flow inward <| map (clickableStrip w h) gamestate 
 
 startScreen : Int -> Int -> Element
 startScreen w h = container w h middle [markdown| # Click to start |]

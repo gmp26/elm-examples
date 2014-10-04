@@ -5,13 +5,8 @@ import Mouse
 import Window
 import Random
 import Text as T
---import Html
---import Html.Attributes
---import Html.Tags (div)
---import Html (Html, node, toElement, (:=), px, text)
-
 import Html (Html, toElement, style, prop, text)
-import Html.Tags (div, img)
+import Html.Tags (div)
 import Html.Attributes (src, class)
 
 --watch : String -> a -> a
@@ -21,12 +16,6 @@ import Html.Attributes (src, class)
 
 tf : Int -> Float
 tf = toFloat
-
---relativeMouse : Location -> Location -> Location
---relativeMouse (ox, oy) (x, y) = (x - ox, -(y - oy))
-
---center : Location -> Location
---center (w, h) = (w // 2, h // 2)
 
 -- INPUT
 
@@ -54,9 +43,9 @@ type State        =   { screen  : ScreenState
 
 type Location = (Int, Int) 
 
-initialGameState =  [ {i = -1, color = red, loc = (-40,0), n = 3, v = (0,8)}
-                    , {i = 0, color = green, loc = (0,0), n = 6, v = (0,4)}
-                    , {i = 1, color = blue, loc = (40,0), n = 5, v = (0,5)}  
+initialGameState =  Play [ {i = -1, color = red, loc = (-40,0), n = 3, v = (0,0)}
+                    , {i = 0, color = green, loc = (0,0), n = 6, v = (0,0)}
+                    , {i = 1, color = blue, loc = (40,0), n = 5, v = (0,0)}  
                     ]
 
 initialState =  { screen = Start
@@ -89,7 +78,10 @@ drop w h s =
 
 update : Event -> State -> State
 update event s = case (watch "events" event) of
-  GotoPlay  ->  {s | screen <- Play initialGameState}
+  GotoPlay  ->  {s| screen  <-  case s.screen of
+                                    Play _      -> s.screen
+                                    otherwise   -> initialGameState
+                }
   Drop w h  ->  drop w h s
   otherwise ->  initialState
 
@@ -185,17 +177,6 @@ render (w,h) state =
     otherwise       ->  asText "Not defined" 
 
 -- PLUMBING
-
-{-
-  These snippets hint at how we might go about throttling the dropSignal.
-  http://share-elm.com/sprout/542d52dbe4b017b21db2f77f
-  http://share-elm.com/sprout/542d51c7e4b017b21db2f77e
-
-  Also, to get a more controlled drop rate, we should calculate each move from the time elapsed
-  since the last drop - i.e. by adding the fps delta to the Drop event.
-
-  And we may need to use `async` for drop so it runs independently of other cpu hogs.
--}
 
 startClick : Signal Event
 startClick = (always GotoPlay)  <~ Mouse.clicks  

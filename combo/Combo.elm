@@ -33,7 +33,7 @@ tf = toFloat
 -- MODEL
 
 grain : Int
-grain = 10
+grain = 22
 
 size : Int -> Float 
 size h = tf h / (1.8 * tf grain)
@@ -70,37 +70,28 @@ data Event = Drop Int Int | GotoPlay
 
 moveStrip : Int -> Int -> Strip -> Strip
 moveStrip w h s = 
-  if hitBottom h (snd s.loc) s.n
-    then  { s | v <- (0, 0)
-              , loc <- (fst s.loc, h - s.n*(round <| hexH h))
-          }
-    else  { s | loc <- (fst s.loc + fst s.v, snd s.loc + snd s.v) }
+    let separation s h = s.i * (ceiling <| hexW h)
+    in if hitBottom h (snd s.loc) s.n
+        then  { s | v <- (0, 0)
+                  , loc <- (separation s h, h - s.n*(round <| hexH h))
+              }
+        else  { s | loc <- (separation s h + fst s.v, snd s.loc + snd s.v) }
 
-drop : State -> State
-drop s =
+drop : Int -> Int -> State -> State
+drop w h s =
   let {screen, width, height} = s
   in case screen of
-    Play gs -> {s | screen <- Play (map (moveStrip s.width s.height) gs) }
-    otherwise -> s
-
--- adjust horizontal separation between strips so it's about the width of a block
-adjustSeparation : Int -> Strip -> Strip
-adjustSeparation h strip =
-  {strip | loc <- (strip.i * (ceiling <| hexW h), snd strip.loc)}
+    Play gs     -> {s | screen  <- Play (map (moveStrip w h) gs) 
+                    ,   width   <- w
+                    ,   height  <- h
+                    }
+    otherwise   -> s
 
 update : Event -> State -> State
 update event s = case (watch "events" event) of
   GotoPlay  ->  {s | screen <- Play initialGameState}
-  Drop w h  ->  drop <| if w /= s.width || h /= s.height
-                            then {s | width <- w
-                                , height <- h
-                                , screen <- case s.screen of
-                                    Play gs   -> Play <| map (adjustSeparation h) gs
-                                    otherwise -> s.screen 
-                            }
-                            else s
-
-  otherwise     ->  initialState
+  Drop w h  ->  drop w h s
+  otherwise ->  initialState
 
 -- DISPLAY
 
@@ -131,7 +122,7 @@ hotSpot h n     = div   [ class "hotspot"
                                 , prop "height" (hexH h * tf n |> px)
                                 , prop "color" "white"
                                 , prop "text-align" "center"
-                                , prop "fontSize" (h // 12 |> px)
+                                , prop "fontSize" ((10 * h) // (12 * grain) |> px)
                                 , prop "cursor" "pointer"
                                 , prop "pointerEvents" "auto"
                                 ]  
@@ -210,7 +201,7 @@ startClick : Signal Event
 startClick = (always GotoPlay)  <~ Mouse.clicks  
 
 dropSignal : Signal Event
-dropSignal = (\(x,y) -> Drop x y) <~ sampleOn (fps 30) Window.dimensions
+dropSignal = (\(w,h) -> Drop w h) <~ sampleOn (fps 30) Window.dimensions
 
 playSignal : Signal Event
 playSignal = merges [ startClick 

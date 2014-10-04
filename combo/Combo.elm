@@ -66,7 +66,7 @@ initialState =  { screen = Start
 
 -- UPDATE
 
-data Event = Drop | GotoPlay | Resize Int Int
+data Event = Drop Int Int | GotoPlay
 
 moveStrip : Int -> Int -> Strip -> Strip
 moveStrip w h s = 
@@ -90,16 +90,16 @@ adjustSeparation h strip =
 
 update : Event -> State -> State
 update event s = case (watch "events" event) of
-  GotoPlay      ->  {s | screen <- Play initialGameState}
-  Drop          ->  drop s
-  Resize w h    ->  if w /= s.width || h /= s.height then
-                      {s | width <- w
-                          , height <- h
-                          , screen <- case s.screen of
-                              Play gs   -> Play <| map (adjustSeparation h) gs
-                              otherwise -> s.screen 
-                      }
-                    else s
+  GotoPlay  ->  {s | screen <- Play initialGameState}
+  Drop w h  ->  drop <| if w /= s.width || h /= s.height
+                            then {s | width <- w
+                                , height <- h
+                                , screen <- case s.screen of
+                                    Play gs   -> Play <| map (adjustSeparation h) gs
+                                    otherwise -> s.screen 
+                            }
+                            else s
+
   otherwise     ->  initialState
 
 -- DISPLAY
@@ -131,12 +131,12 @@ hotSpot h n     = div   [ class "hotspot"
                                 , prop "height" (hexH h * tf n |> px)
                                 , prop "color" "white"
                                 , prop "text-align" "center"
-                                , prop "fontSize" (h // 30 |> px)
+                                , prop "fontSize" (h // 12 |> px)
                                 , prop "cursor" "pointer"
                                 , prop "pointerEvents" "auto"
                                 ]  
                         ]
-                        [ text <| show n ]
+                        [ show n |> text ]
 
                   |> toElement (round <| (hexW h)) (round <| (hexH h))
 
@@ -196,7 +196,7 @@ render (w,h) state =
 -- PLUMBING
 
 {-
-  These snippets hint at how we might go about throttling the drop and resizeSignals.
+  These snippets hint at how we might go about throttling the dropSignal.
   http://share-elm.com/sprout/542d52dbe4b017b21db2f77f
   http://share-elm.com/sprout/542d51c7e4b017b21db2f77e
 
@@ -210,16 +210,11 @@ startClick : Signal Event
 startClick = (always GotoPlay)  <~ Mouse.clicks  
 
 dropSignal : Signal Event
-dropSignal = (always Drop)      <~ fps 30
-
-
-resizeSignal : Signal Event
-resizeSignal = (\(x,y) -> Resize x y) <~ sampleOn (every second) Window.dimensions
+dropSignal = (\(x,y) -> Drop x y) <~ sampleOn (fps 30) Window.dimensions
 
 playSignal : Signal Event
 playSignal = merges [ startClick 
                     , dropSignal
-                    , resizeSignal
                     ]
 
 main : Signal Element

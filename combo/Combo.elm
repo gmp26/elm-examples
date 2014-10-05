@@ -187,21 +187,26 @@ clickableStrip w h strip = GI.clickable startDrop.handle strip.i (drawStrip w h 
 
 makeButton : Strip -> Element
 makeButton strip = 
-    let b = GI.button startDrop.handle strip.i (show strip.n)
-    in GE.width 40 b
+    let col =   if  | strip.i == -1 -> "green"
+                    | strip.i == 0  -> "red"
+                    | strip.i == 1  -> "blue"
+        normal  = GE.image 40 40 <| "media/"++col++".png"
+        active  = GE.image 40 40 <| "media/"++col++"Active.png"
+    in  GI.customButton startDrop.handle strip.i normal active active
 
-againButton = 
-    let b = GI.button again.handle () "Up"
-    in GE.width 40 b
+againButton = GI.customButton again.handle ()
+                (GE.image 40 40 "media/up.png")
+                (GE.image 40 40 "media/upActive.png")
+                (GE.image 40 40 "media/upActive.png")
 
 buttonBar : GameState -> Element
 buttonBar gameState = 
     let launchButtons = map makeButton gameState
     in flow left 
         [ flow right <| launchButtons
-        , spacer 10 10
+        , spacer 20 10
         , againButton
-        , spacer 10 10
+        , spacer 20 10
         , flow left  <| launchButtons
         ]
 
@@ -232,14 +237,15 @@ startClick = (always GotoPlay) <~ Mouse.clicks
 dropSignal : Signal Event
 dropSignal = (\(w,h) -> Drop w h) <~ sampleOn (fps 60) Window.dimensions
 
+stripClick : Signal Event
+stripClick = (\i -> Launch i) <~ startDrop.signal
+
 eventSignal : Signal Event
 eventSignal = merges    [ startClick 
                         , dropSignal
                         , stripClick
                         ]
 
-stripClick : Signal Event
-stripClick = (\i -> Launch i) <~ startDrop.signal
 
 main : Signal Element
 main = render <~ Window.dimensions ~ foldp update initialState eventSignal

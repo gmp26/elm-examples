@@ -19,8 +19,8 @@ tf : Int -> Float
 tf = toFloat
 
 -- INPUTS
-startDrop : GI.Input Int
-startDrop = GI.input 0      -- strip 0 is the initial value of the signal
+startDrop : GI.Input (Int, Side)
+startDrop = GI.input (0, L)      -- strip 0 is the initial value of the signal
 
 again : GI.Input ()         -- not sure what this button does yet.
 again = GI.input ()         -- play again, reset, another strip set?
@@ -39,9 +39,12 @@ type Strip  =   { i : Int
                 , v : (Int, Int)
                 }
 
-strip_1     =   {i = -1,  color = red,    loc = (-40,-200),  n = 3,  v = (0,0)}
-strip0      =   {i = 0,   color = green,  loc = (0,-200),    n = 5,  v = (0,0)}
-strip1      =   {i = 1,   color = blue,   loc = (40,-200),   n = 6,  v = (0,0)}   
+-- should a strip drop on left or right?
+data Side = L | R
+
+strip_1     =   {i = -1,  color = red,    loc = (-40,-300),  n = 3,  v = (0,0)}
+strip0      =   {i = 0,   color = green,  loc = (0,-300),    n = 5,  v = (0,0)}
+strip1      =   {i = 1,   color = blue,   loc = (40,-300),   n = 6,  v = (0,0)}   
 
 type GameState    =   [Strip]
 data ScreenState  =   Start | Play GameState | GameOver
@@ -65,14 +68,19 @@ initialState =  { screen = Start
 
 -- UPDATE
 
-data Event = GotoPlay | Launch Int | Drop Int Int
+data Event = GotoPlay | Launch Int Side | Drop Int Int | Again
 
 -- update velocity of a clicked strip, leaving the others untouched
-launch : Int -> Strip -> Strip
-launch clickedIndex s = {s| v   <-  if clickedIndex == s.i
-                                        then (0, 12)
-                                        else s.v
-                        }
+launch : Int -> Side -> Strip -> Strip
+launch clickedIndex side s  =   let offset = case side of
+                                                L -> -100
+                                                R -> 100
+                                                otherwise -> 0
+                                in  {s| v   <-  if clickedIndex == s.i
+                                                then (offset, 15)
+                                                else s.v
+                                    ,   loc <-  (offset, snd s.loc)
+                                    }
 
 moveStrip : Int -> Int -> Strip -> Strip
 moveStrip w h s = 
@@ -87,11 +95,18 @@ drop : Int -> Int -> State -> State
 drop w h s =
   let {screen, width, height} = s
   in case screen of
-    Play gs     ->  {s| screen  <- Play <| map (moveStrip w (h - heightOf againButton)) gs
+    Play gs     ->  {s| screen  <- Play <| map (moveStrip w (h - widthOf againButton)) gs
                     ,   width   <- w
                     ,   height  <- h
                     }
     otherwise   -> s
+
+resetStrip : Strip -> Strip
+resetStrip s =  if  | s.i == -1 -> strip_1
+                    | s.i == 0  -> strip0
+                    | s.i == 1  -> strip1 
+                
+
 
 update : Event -> State -> State
 update event s = case (unwatch "events" event) of
@@ -99,12 +114,17 @@ update event s = case (unwatch "events" event) of
                                     Play _      -> s.screen
                                     otherwise   -> initialGameState
                     }
-    Launch index -> {s| screen  <-  case s.screen of
-                                    Play strips -> Play <| map (launch index) strips
-                                    otherwise   -> s.screen
+    Launch index side   
+                ->  {s| screen  <-  case s.screen of
+                                        Play strips -> Play <| map (launch index side) strips
+                                        otherwise   -> s.screen
                     }
-    Drop w h  ->  drop w h s
-    otherwise ->  initialState
+    Drop w h    ->  drop w h s
+    Again       ->  {s| screen  <- case s.screen of
+                                        Play strips -> Play <| map resetStrip strips
+                                        otherwise   -> s.screen
+                    }
+    otherwise   ->  initialState
 
 -- DISPLAY
 
@@ -182,40 +202,52 @@ hitBottom h y n =
 drawStrip : Int -> Int -> Strip -> Element
 drawStrip w h strip = positionedStrip strip.color strip.n (w,h) strip.loc
 
-clickableStrip : Int -> Int -> Strip -> Element
-clickableStrip w h strip = GI.clickable startDrop.handle strip.i (drawStrip w h strip)
-
-makeButton : Strip -> Element
-makeButton strip = 
-    let col =   if  | strip.i == -1 -> "green"
-                    | strip.i == 0  -> "red"
+makeButton : Side -> Strip -> Element
+makeButton side strip = 
+    let col =   if  | strip.i == -1 -> "red"
+                    | strip.i == 0  -> "green"
                     | strip.i == 1  -> "blue"
         normal  = GE.image 40 40 <| "media/"++col++".png"
         active  = GE.image 40 40 <| "media/"++col++"Active.png"
-    in  GI.customButton startDrop.handle strip.i normal active active
+    in  GI.customButton startDrop.handle (strip.i, side) normal active active
 
 againButton = GI.customButton again.handle ()
                 (GE.image 40 40 "media/up.png")
                 (GE.image 40 40 "media/upActive.png")
                 (GE.image 40 40 "media/upActive.png")
 
-buttonBar : GameState -> Element
-buttonBar gameState = 
-    let launchButtons = map makeButton gameState
-    in flow left 
-        [ flow right <| launchButtons
-        , spacer 20 10
-        , againButton
-        , spacer 20 10
-        , flow left  <| launchButtons
+buttonBar : Int -> GameState -> Element
+buttonBar w gameState = 
+    let launchButtons side = map (makeButton side) gameState
+        leftButtons = flow right <| launchButtons L
+        rightButtons = flow left <| launchButtons R
+        pad = (w - ((widthOf againButton) + 2 * (widthOf leftButtons)) ) // 2
+        barHeight = 40
+        barGround = collage w barHeight [rect (tf w) (tf barHeight) |> filled charcoal]
+        buttons = flow right 
+            [ leftButtons
+            , spacer pad 10
+            , againButton
+            , spacer pad 10
+            , rightButtons
+            ]
+    in  flow outward
+        [ barGround
+        , flow down 
+            [ spacer 1 1
+            , buttons
+            ]
         ]
 
 stage : Int -> Int -> GameState -> Element
 stage w h gameState = 
-    let bar = buttonBar gameState
-    in flow down 
-        [ bar
-        , flow inward <| map (clickableStrip w (h - heightOf bar)) gameState
+    let bar = buttonBar w gameState
+    in flow outward 
+        [ collage w h [rect (tf w) (tf h) |> filled black]
+        , flow down 
+            [ bar
+            , flow inward <| map (drawStrip w (h - heightOf bar)) gameState
+            ]
         ] 
 
 startScreen : Int -> Int -> Element
@@ -234,18 +266,21 @@ render (w,h) state =
 startClick : Signal Event
 startClick = (always GotoPlay) <~ Mouse.clicks  
 
-dropSignal : Signal Event
-dropSignal = (\(w,h) -> Drop w h) <~ sampleOn (fps 60) Window.dimensions
+dropping : Signal Event
+dropping = (\(w,h) -> Drop w h) <~ sampleOn (fps 60) Window.dimensions
 
-stripClick : Signal Event
-stripClick = (\i -> Launch i) <~ startDrop.signal
+dropStart : Signal Event
+dropStart = (\(i, side) -> Launch i side) <~ startDrop.signal
+
+againSignal : Signal Event
+againSignal = (always Again) <~ again.signal 
 
 eventSignal : Signal Event
 eventSignal = merges    [ startClick 
-                        , dropSignal
-                        , stripClick
+                        , dropping
+                        , dropStart
+                        , againSignal
                         ]
-
 
 main : Signal Element
 main = render <~ Window.dimensions ~ foldp update initialState eventSignal

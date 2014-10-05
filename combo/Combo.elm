@@ -19,10 +19,10 @@ tf = toFloat
 
 -- INPUTS
 startDrop : GI.Input Int
-startDrop = GI.input 0     -- strip 0 is the initial value of the signal
+startDrop = GI.input 0      -- strip 0 is the initial value of the signal
 
-again : GI.Input ()
-again = GI.input ()
+again : GI.Input ()         -- not sure what this button does yet.
+again = GI.input ()         -- play again, reset, another strip set?
 
 -- MODEL
 grain : Int
@@ -184,14 +184,15 @@ drawStrip w h strip = positionedStrip strip.color strip.n (w,h) strip.loc
 clickableStrip : Int -> Int -> Strip -> Element
 clickableStrip w h strip = GI.clickable startDrop.handle strip.i (drawStrip w h strip)
 
-makeButtons : GameState -> [Element]
-makeButtons gameState = map (\strip -> GI.button startDrop.handle strip.i (show strip.n)) gameState
+makeButton : Strip -> Element
+makeButton strip = 
+    GI.button startDrop.handle strip.i (show strip.n)
 
 againButton = GI.button again.handle () "^"
 
 buttonBar : GameState -> Element
 buttonBar gameState = 
-    let launchButtons = makeButtons gameState
+    let launchButtons = map makeButton gameState
     in flow left 
         [ flow right <| launchButtons
         , spacer 10 10

@@ -9,6 +9,7 @@ import Html (Html, toElement, style, prop, text)
 import Html.Tags (div)
 import Html.Attributes (src, class)
 import Graphics.Input as GI
+import Graphics.Element as GE
 
 -- HELPERS
 unwatch : String -> a -> a      -- use to temporarily silence a watch
@@ -38,9 +39,9 @@ type Strip  =   { i : Int
                 , v : (Int, Int)
                 }
 
-strip_1     =   {i = -1,  color = red,    loc = (-40,0),  n = 3,  v = (0,0)}
-strip0      =   {i = 0,   color = green,  loc = (0,0),    n = 6,  v = (0,0)}
-strip1      =   {i = 1,   color = blue,   loc = (40,0),   n = 5,  v = (0,0)}   
+strip_1     =   {i = -1,  color = red,    loc = (-40,-200),  n = 3,  v = (0,0)}
+strip0      =   {i = 0,   color = green,  loc = (0,-200),    n = 5,  v = (0,0)}
+strip1      =   {i = 1,   color = blue,   loc = (40,-200),   n = 6,  v = (0,0)}   
 
 type GameState    =   [Strip]
 data ScreenState  =   Start | Play GameState | GameOver
@@ -69,7 +70,7 @@ data Event = GotoPlay | Launch Int | Drop Int Int
 -- update velocity of a clicked strip, leaving the others untouched
 launch : Int -> Strip -> Strip
 launch clickedIndex s = {s| v   <-  if clickedIndex == s.i
-                                        then (0, 6)
+                                        then (0, 12)
                                         else s.v
                         }
 
@@ -186,9 +187,12 @@ clickableStrip w h strip = GI.clickable startDrop.handle strip.i (drawStrip w h 
 
 makeButton : Strip -> Element
 makeButton strip = 
-    GI.button startDrop.handle strip.i (show strip.n)
+    let b = GI.button startDrop.handle strip.i (show strip.n)
+    in GE.width 40 b
 
-againButton = GI.button again.handle () "^"
+againButton = 
+    let b = GI.button again.handle () "Up"
+    in GE.width 40 b
 
 buttonBar : GameState -> Element
 buttonBar gameState = 
@@ -197,6 +201,7 @@ buttonBar gameState =
         [ flow right <| launchButtons
         , spacer 10 10
         , againButton
+        , spacer 10 10
         , flow left  <| launchButtons
         ]
 
@@ -225,7 +230,7 @@ startClick : Signal Event
 startClick = (always GotoPlay) <~ Mouse.clicks  
 
 dropSignal : Signal Event
-dropSignal = (\(w,h) -> Drop w h) <~ sampleOn (fps 30) Window.dimensions
+dropSignal = (\(w,h) -> Drop w h) <~ sampleOn (fps 60) Window.dimensions
 
 eventSignal : Signal Event
 eventSignal = merges    [ startClick 

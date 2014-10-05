@@ -1,11 +1,11 @@
 Notes
 =====
 
-Reached an impasse with this design due to these bugs
+Reached an impasse with this design (@tag impasse in log) due to these bugs
 https://github.com/elm-lang/Elm/issues/775
 https://github.com/elm-lang/Elm/issues/747
 
-The issue is occurs in both collages and containers. 
+The issue occurs in both collages and containers. 
 
 For collages
 ------------

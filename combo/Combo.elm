@@ -86,7 +86,7 @@ drop : Int -> Int -> State -> State
 drop w h s =
   let {screen, width, height} = s
   in case screen of
-    Play gs     ->  {s| screen  <- Play <| map (moveStrip w (h-40)) gs
+    Play gs     ->  {s| screen  <- Play <| map (moveStrip w (h - heightOf againButton)) gs
                     ,   width   <- w
                     ,   height  <- h
                     }

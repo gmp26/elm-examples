@@ -37,14 +37,15 @@ type Strip  =   { i : Int
                 , loc : Location
                 , n : Int
                 , v : (Int, Int)
+                , side : Side
                 }
 
 -- should a strip drop on left or right?
 data Side = L | R
 
-strip_1     =   {i = -1,  color = red,    loc = (-40,-300),  n = 3,  v = (0,0)}
-strip0      =   {i = 0,   color = green,  loc = (0,-300),    n = 5,  v = (0,0)}
-strip1      =   {i = 1,   color = blue,   loc = (40,-300),   n = 6,  v = (0,0)}   
+strip_1     =   {i = -1,  color = red,    loc = (-40,-300),  n = 3,  v = (0,0), side = L}
+strip0      =   {i = 0,   color = green,  loc = (0,-300),    n = 5,  v = (0,0), side = L}
+strip1      =   {i = 1,   color = blue,   loc = (40,-300),   n = 6,  v = (0,0), side = L}   
 
 type GameState    =   [Strip]
 data ScreenState  =   Start | Play GameState | GameOver
@@ -77,14 +78,14 @@ launch clickedIndex side s  =   let offset = case side of
                                                 R -> 100
                                                 otherwise -> 0
                                 in  {s| v   <-  if clickedIndex == s.i
-                                                then (offset, 15)
+                                                then (0, 20)
                                                 else s.v
-                                    ,   loc <-  (offset, snd s.loc)
+                                    , side  <- side
                                     }
 
 moveStrip : Int -> Int -> Strip -> Strip
 moveStrip w h s = 
-    let separation s h = s.i * (ceiling <| hexW h)
+    let separation s h = (ceiling <| hexW h) * (if s.side == L then -1 else 1)
     in if hitBottom h (snd s.loc) s.n
         then    {s| v <- (0, 0)
                 ,   loc <- (separation s h, h - s.n*(round <| hexH h))
@@ -93,13 +94,13 @@ moveStrip w h s =
 
 drop : Int -> Int -> State -> State
 drop w h s =
-  let {screen, width, height} = s
-  in case screen of
-    Play gs     ->  {s| screen  <- Play <| map (moveStrip w (h - widthOf againButton)) gs
-                    ,   width   <- w
-                    ,   height  <- h
-                    }
-    otherwise   -> s
+    let {screen, width, height} = s
+    in case screen of
+        Play gs     ->  {s| screen  <- Play <| map (moveStrip w (h - widthOf againButton)) gs
+                        ,   width   <- w
+                        ,   height  <- h
+                        }
+        otherwise   -> s
 
 resetStrip : Strip -> Strip
 resetStrip s =  if  | s.i == -1 -> strip_1

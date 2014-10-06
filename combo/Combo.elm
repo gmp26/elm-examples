@@ -200,6 +200,9 @@ hHEIGHT h n = (round <| (hexH h))*n
 hHeight : Int -> Int -> Float
 hHeight h n = (hexH h)*(tf n)
 
+hexStripImage : Int -> Color -> Int -> Element
+hexStripImage = image h h 
+
 hexStripElement : Int -> Color -> Int -> Element
 hexStripElement h col n = 
     let hh = (round <| (hexH h))*n

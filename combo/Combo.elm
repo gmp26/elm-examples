@@ -32,6 +32,8 @@ grain = 22
 size : Int -> Float 
 size h = tf h / (1.8 * tf grain)
 
+type Location = (Int, Int) 
+
 type Strip  =   { i : Int
                 , color : Color
                 , loc : Location
@@ -47,29 +49,20 @@ strip_1     =   {i = -1,  color = red,    loc = (-40,-300),  n = 3,  v = (0,0), 
 strip0      =   {i = 0,   color = green,  loc = (0,-300),    n = 5,  v = (0,0), side = None}
 strip1      =   {i = 1,   color = lightBlue,   loc = (40,-300),   n = 6,  v = (0,0), side = None}   
 
-type GameState    =   [Strip]
-data ScreenState  =   Start | Play GameState | GameOver
-type State        =   { screen  : ScreenState
-                      , width   : Int
-                      , height  : Int
-                      }
+type GameState  =   {strips : [Strip]}
 
-type Location = (Int, Int) 
+data State      =   Start | Play GameState | GameOver
 
-initialGameState =  Play
-                    [ strip_1
-                    , strip0
-                    , strip1
-                    ]
 
-initialState =  { screen = Start
-                , width = 320
-                , height = 480
-                }
+initialGameState : State
+initialGameState =  Play {strips = [strip_1, strip0, strip1]}
+
+initialState : State
+initialState = Start
 
 stackHeight : Side -> GameState -> Int
-stackHeight side strips =
-    let stack  = filter (\strip -> strip.side == side) strips
+stackHeight side gs =
+    let stack  = filter (\strip -> strip.side == side) gs.strips
     in  foldr (\strip x -> strip.n + x) 0 (stack) 
 
 -- UPDATE
@@ -83,46 +76,38 @@ launch clickedIndex side s  =   let offset = case side of
                                                 R -> 100
                                                 otherwise -> 0
                                 in  {s| v   <-  if clickedIndex == s.i
-                                                then (0, 1)
+                                                then (0, 20)
                                                 else s.v
                                     ,   side <- if clickedIndex == s.i
                                                 then side
                                                 else s.side
                                     }
 
--- h - s.n*(round <| hexH h)
--- stackHeight s.side strips
-
-
 hitBottom : Int -> Int -> Int -> Int -> Bool
 hitBottom h y n travelh = 
-    y >= travelh - hHEIGHT h n
+    y >= travelh - stripHeight h n
 
 moveStrip : Int -> Int -> GameState -> Strip -> Strip
-moveStrip w h strips s = 
+moveStrip w h gs s = 
     let sign =  if  | s.side == L -> -1
                     | s.side == R -> 1
                     | otherwise -> 0
-        separation s h = round <| hexW h * sign / 2
-        stack = stackHeight s.side strips - s.n
-        leftStack = watch "lStack" <| stackHeight L strips
-        rightStack = watch "rStack" <| stackHeight R strips
+        separation s h = hexW h * sign // 2
+        stack = stackHeight s.side gs - s.n
+        leftStack = watch "lStack" <| stackHeight L gs
+        rightStack = watch "rStack" <| stackHeight R gs
 
-    in if hitBottom h (snd s.loc) s.n (h - hHEIGHT h stack)
+    in if hitBottom h (snd s.loc) s.n (h - stripHeight h stack)
         then    {s| v <- (0, 0)
-                ,   loc <- (separation s h,  (h - hHEIGHT h stack - hHEIGHT h s.n))
+                ,   loc <- (separation s h,  (h - stripHeight h stack - stripHeight h s.n))
                 }
         else    {s| loc <- (separation s h + fst s.v, snd s.loc + snd s.v) }
 
 drop : Int -> Int -> State -> State
-drop w h s =
-    let {screen, width, height} = s
-    in case screen of
-        Play gs     ->  {s| screen  <- Play <| map (moveStrip w (h - widthOf againButton) gs) gs
-                        ,   width   <- w
-                        ,   height  <- h
-                        }
-        otherwise   -> s
+drop w h screen =
+    case screen of
+        Play gs     ->  Play {strips = map (moveStrip w (h - widthOf againButton) gs) gs.strips}
+        otherwise   -> screen
 
 --returns strips at start position. Should be tweened.
 resetStrip : Strip -> Strip
@@ -133,97 +118,24 @@ resetStrip s =  if  | s.i == -1 -> strip_1
 
 
 update : Event -> State -> State
-update event s = case (unwatch "events" event) of
-    GotoPlay    ->  {s| screen  <-  case s.screen of
-                                    Play _      -> s.screen
-                                    otherwise   -> initialGameState
-                    }
+update event screen = case (unwatch "events" event) of
+    GotoPlay    ->  case screen of
+                        Play _      -> screen
+                        otherwise   -> initialGameState
+
     Launch index side   
-                ->  {s| screen  <-  case s.screen of
-                                        Play strips -> Play <| map (launch index side) strips
-                                        otherwise   -> s.screen
-                    }
-    Drop w h    ->  drop w h s
-    Again       ->  {s| screen  <- case s.screen of
-                                        Play strips -> Play <| map resetStrip strips
-                                        otherwise   -> s.screen
-                    }
+                ->  case screen of
+                        Play gs -> Play {strips = map (launch index side) gs.strips}
+                        otherwise   -> screen
+
+    Drop w h    ->  drop w h screen
+    Again       ->  case screen of
+                        Play gs -> Play {strips = map resetStrip gs.strips}
+                        otherwise   -> screen
+                    
     otherwise   ->  initialState
 
 -- DISPLAY
-
--- one coloured hexagon
-hex : Color -> Int -> Form
-hex col h = ngon 6 (size h)
-               |> filled col  
-
--- height of hexagon
-hexH : Int -> Float
-hexH h = (size h) * 1.8
-
-hexW : Int -> Float
-hexW h = (size h) * 2
-
--- the jth coloured hexagon in a strip
-hexAt : Color -> Int -> Int -> Form
-hexAt col h j   =   ngon 6 (size h)
-                    |> filled col
-                    |> moveY -(tf j * (hexH h))
-
--- a CSS length property in pixels
-px : number -> String
-px x = (show x) ++ "px"  
-
--- make a numeric label for a hexStrip in white.
--- h is needed to get the size right.
-stripLabel :  Int -> Int -> Element
-stripLabel h n     = div   [ class "hotspot"
-                        , style [ prop "width" (hexW h |> px)
-                                , prop "color" "white"
-                                , prop "text-align" "center"
-                                , prop "fontSize" ((10 * h) // (12 * grain) |> px)
-                                ]  
-                        ]
-                        [ show n |> text ]
-
-                  |> toElement (round <| (hexW h)) (round <| (hexH h))
-
-hexStripForm : Int -> Color -> Int -> Form
-hexStripForm h col n =
-  let hexunit = hexAt col h
-  in map hexunit [0..(n-1)]
-        |> group
-
-hHEIGHT : Int -> Int -> Int
-hHEIGHT h n = (round <| (hexH h))*n
-
-hHeight : Int -> Int -> Float
-hHeight h n = (hexH h)*(tf n)
-
-hexStripImage : Int -> Color -> Int -> Element
-hexStripImage = image h h 
-
-hexStripElement : Int -> Color -> Int -> Element
-hexStripElement h col n = 
-    let hh = (round <| (hexH h))*n
-        hw = (round <| (hexW h))
-    in flow outward
-        [ collage hw hh
-            <|  [ hexStripForm h col n |> moveY  ((tf hh - hexH h)/ 2)]
-        , stripLabel h n
-        ]
-
-positionedStrip : Color -> Int -> (Int, Int) -> Location -> Element
-positionedStrip col n (w, h) (x,y) =
-    let 
-        xpos = absolute (x + w // 2)
-        ypos = absolute y
-        position = midTopAt xpos ypos
-    in hexStripElement h col n
-        |> container w h position
-
-drawStrip : Int -> Int -> Strip -> Element
-drawStrip w h strip = positionedStrip strip.color strip.n (w,h) strip.loc
 
 makeButton : Side -> Strip -> Element
 makeButton side strip = 
@@ -240,8 +152,8 @@ againButton = GI.customButton again.handle ()
                 (GE.image 40 40 "media/upActive.png")
 
 buttonBar : Int -> GameState -> Element
-buttonBar w gameState = 
-    let launchButtons side = map (makeButton side) gameState
+buttonBar w gs = 
+    let launchButtons side = map (makeButton side) gs.strips
         leftButtons = flow right <| launchButtons L
         rightButtons = flow left <| launchButtons R
         pad = (w - ((widthOf againButton) + 2 * (widthOf leftButtons)) ) // 2
@@ -264,14 +176,73 @@ buttonBar w gameState =
             ]
         ]
 
+-- height of hexagon
+hexH : Int -> Int
+hexH h = round <| (size h) * 1.8
+
+hexW : Int -> Int
+hexW h = round <| (size h) * 2
+
+-- a CSS length property in pixels
+px : number -> String
+px x = (show x) ++ "px"  
+
+-- make a numeric label for a hexStrip in white.
+-- h is needed to get the size right.
+stripLabel :  Int -> Int -> Element
+stripLabel h n = 
+    div  
+        [ class "hotspot"
+        , style 
+            [ prop "width" (hexH h |> px)
+            , prop "color" "white"
+            , prop "text-align" "center"
+            , prop "fontSize" ((10 * h) // (12 * grain) |> px)
+            ]  
+        ]
+        [ show n |> text ]
+
+        |> toElement (hexW h) (hexH h)
+
+stripHeight : Int -> Int -> Int
+stripHeight h n = n * hexH h
+
+hexStrip : Int -> Color -> Int -> Element
+hexStrip h col n = 
+    let url = "media/"  ++  (if  | col == lightBlue  -> "blue"
+                                 | col == red        -> "red"
+                                 | col == green      -> "green"
+                            ) ++  "Active.png"
+
+    in flow down <| map (\i -> fittedImage h h url) [1..n]
+
+labelledStrip : Int -> Color -> Int -> Element
+labelledStrip h col n = 
+    flow outward
+        [ hexStrip (hexH h) col n
+        , stripLabel h n
+        ]
+
+positionedStrip : Color -> Int -> (Int, Int) -> Location -> Element
+positionedStrip col n (w, h) (x,y) =
+    let 
+        xpos = absolute (x + w // 2)
+        ypos = absolute y
+        position = midTopAt xpos ypos
+    in labelledStrip h col n
+        |> container w h position
+
+drawStrip : Int -> Int -> Strip -> Element
+drawStrip w h strip = positionedStrip strip.color strip.n (w,h) strip.loc
+
 stage : Int -> Int -> GameState -> Element
-stage w h gameState = 
-    let bar = buttonBar w gameState
+stage w h gs = 
+    let bar = buttonBar w gs
     in flow outward 
         [ collage w h [rect (tf w) (tf h) |> filled (rgb 50 40 40)]
         , flow down 
             [ bar
-            , flow inward <| map (drawStrip w (h - heightOf bar)) gameState
+            , flow inward <| map (drawStrip w (h - heightOf bar)) gs.strips
             ]
         ] 
 
@@ -279,11 +250,10 @@ startScreen : Int -> Int -> Element
 startScreen w h = container w h middle [markdown| # Click to start |]
 
 render : (Int, Int) -> State -> Element
-render (w,h) state =
-    let {screen, width, height} = (unwatch "state" state)
-    in case (screen) of
+render (w,h) screen =
+    case screen of
         Start           ->  startScreen w h
-        Play gamestate  ->  stage w h gamestate 
+        Play gs  ->  stage w h gs 
         otherwise       ->  asText "Not defined" 
 
 -- PLUMBING

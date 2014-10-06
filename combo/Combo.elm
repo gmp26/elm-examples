@@ -20,7 +20,7 @@ tf = toFloat
 
 -- INPUTS
 startDrop : GI.Input (Int, Side)
-startDrop = GI.input (0, L)      -- strip 0 is the initial value of the signal
+startDrop = GI.input (0, None)      -- strip 0 is the initial value of the signal
 
 again : GI.Input ()         -- not sure what this button does yet.
 again = GI.input ()         -- play again, reset, another strip set?
@@ -41,11 +41,11 @@ type Strip  =   { i : Int
                 }
 
 -- should a strip drop on left or right?
-data Side = L | R
+data Side = L | R | None
 
-strip_1     =   {i = -1,  color = red,    loc = (-40,-300),  n = 3,  v = (0,0), side = L}
-strip0      =   {i = 0,   color = green,  loc = (0,-300),    n = 5,  v = (0,0), side = L}
-strip1      =   {i = 1,   color = blue,   loc = (40,-300),   n = 6,  v = (0,0), side = L}   
+strip_1     =   {i = -1,  color = red,    loc = (-40,-300),  n = 3,  v = (0,0), side = None}
+strip0      =   {i = 0,   color = green,  loc = (0,-300),    n = 5,  v = (0,0), side = None}
+strip1      =   {i = 1,   color = lightBlue,   loc = (40,-300),   n = 6,  v = (0,0), side = None}   
 
 type GameState    =   [Strip]
 data ScreenState  =   Start | Play GameState | GameOver
@@ -80,12 +80,17 @@ launch clickedIndex side s  =   let offset = case side of
                                 in  {s| v   <-  if clickedIndex == s.i
                                                 then (0, 20)
                                                 else s.v
-                                    , side  <- side
+                                    ,   side <- if clickedIndex == s.i
+                                                then side
+                                                else s.side
                                     }
 
 moveStrip : Int -> Int -> Strip -> Strip
 moveStrip w h s = 
-    let separation s h = (ceiling <| hexW h) * (if s.side == L then -1 else 1)
+    let sign =  if  | s.side == L -> -1
+                    | s.side == R -> 1
+                    | otherwise -> 0
+        separation s h = round <| hexW h * sign / 2
     in if hitBottom h (snd s.loc) s.n
         then    {s| v <- (0, 0)
                 ,   loc <- (separation s h, h - s.n*(round <| hexH h))
@@ -222,15 +227,17 @@ buttonBar w gameState =
     let launchButtons side = map (makeButton side) gameState
         leftButtons = flow right <| launchButtons L
         rightButtons = flow left <| launchButtons R
-        pad = (w - ((widthOf againButton) + 2 * (widthOf leftButtons)) ) // 2
+        pad = (w - ((widthOf againButton) + 2 * (widthOf leftButtons) + 40) ) // 2
         barHeight = 40
-        barGround = collage w barHeight [rect (tf w) (tf barHeight) |> filled charcoal]
+        barGround = collage w barHeight [rect (tf w) (tf barHeight) |> filled black]
         buttons = flow right 
-            [ leftButtons
-            , spacer pad 10
+            [ spacer pad 10
+            , leftButtons
+            , spacer 20 10
             , againButton
-            , spacer pad 10
+            , spacer 20 10
             , rightButtons
+            , spacer pad 10 
             ]
     in  flow outward
         [ barGround
@@ -244,7 +251,7 @@ stage : Int -> Int -> GameState -> Element
 stage w h gameState = 
     let bar = buttonBar w gameState
     in flow outward 
-        [ collage w h [rect (tf w) (tf h) |> filled black]
+        [ collage w h [rect (tf w) (tf h) |> filled (rgb 50 40 40)]
         , flow down 
             [ bar
             , flow inward <| map (drawStrip w (h - heightOf bar)) gameState

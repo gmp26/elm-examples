@@ -67,6 +67,11 @@ initialState =  { screen = Start
                 , height = 480
                 }
 
+stackHeight : Side -> GameState -> Int
+stackHeight side strips =
+    let stack  = filter (\strip -> strip.side == side) strips
+    in  foldr (\strip x -> strip.n + x) 0 (stack) 
+
 -- UPDATE
 
 data Event = GotoPlay | Launch Int Side | Drop Int Int | Again
@@ -78,22 +83,34 @@ launch clickedIndex side s  =   let offset = case side of
                                                 R -> 100
                                                 otherwise -> 0
                                 in  {s| v   <-  if clickedIndex == s.i
-                                                then (0, 20)
+                                                then (0, 1)
                                                 else s.v
                                     ,   side <- if clickedIndex == s.i
                                                 then side
                                                 else s.side
                                     }
 
-moveStrip : Int -> Int -> Strip -> Strip
-moveStrip w h s = 
+-- h - s.n*(round <| hexH h)
+-- stackHeight s.side strips
+
+
+hitBottom : Int -> Int -> Int -> Int -> Bool
+hitBottom h y n travelh = 
+    y >= travelh - hHEIGHT h n
+
+moveStrip : Int -> Int -> GameState -> Strip -> Strip
+moveStrip w h strips s = 
     let sign =  if  | s.side == L -> -1
                     | s.side == R -> 1
                     | otherwise -> 0
         separation s h = round <| hexW h * sign / 2
-    in if hitBottom h (snd s.loc) s.n
+        stack = stackHeight s.side strips - s.n
+        leftStack = watch "lStack" <| stackHeight L strips
+        rightStack = watch "rStack" <| stackHeight R strips
+
+    in if hitBottom h (snd s.loc) s.n (h - hHEIGHT h stack)
         then    {s| v <- (0, 0)
-                ,   loc <- (separation s h, h - s.n*(round <| hexH h))
+                ,   loc <- (separation s h,  (h - hHEIGHT h stack - hHEIGHT h s.n))
                 }
         else    {s| loc <- (separation s h + fst s.v, snd s.loc + snd s.v) }
 
@@ -101,12 +118,13 @@ drop : Int -> Int -> State -> State
 drop w h s =
     let {screen, width, height} = s
     in case screen of
-        Play gs     ->  {s| screen  <- Play <| map (moveStrip w (h - widthOf againButton)) gs
+        Play gs     ->  {s| screen  <- Play <| map (moveStrip w (h - widthOf againButton) gs) gs
                         ,   width   <- w
                         ,   height  <- h
                         }
         otherwise   -> s
 
+--returns strips at start position. Should be tweened.
 resetStrip : Strip -> Strip
 resetStrip s =  if  | s.i == -1 -> strip_1
                     | s.i == 0  -> strip0
@@ -152,18 +170,18 @@ hexAt col h j   =   ngon 6 (size h)
                     |> filled col
                     |> moveY -(tf j * (hexH h))
 
+-- a CSS length property in pixels
 px : number -> String
 px x = (show x) ++ "px"  
 
-hotSpot :  Int -> Int -> Element
-hotSpot h n     = div   [ class "hotspot"
+-- make a numeric label for a hexStrip in white.
+-- h is needed to get the size right.
+stripLabel :  Int -> Int -> Element
+stripLabel h n     = div   [ class "hotspot"
                         , style [ prop "width" (hexW h |> px)
-                                , prop "height" (hexH h * tf n |> px)
                                 , prop "color" "white"
                                 , prop "text-align" "center"
                                 , prop "fontSize" ((10 * h) // (12 * grain) |> px)
-                                , prop "cursor" "pointer"
-                                , prop "pointerEvents" "auto"
                                 ]  
                         ]
                         [ show n |> text ]
@@ -189,7 +207,7 @@ hexStripElement h col n =
     in flow outward
         [ collage hw hh
             <|  [ hexStripForm h col n |> moveY  ((tf hh - hexH h)/ 2)]
-        , hotSpot h n
+        , stripLabel h n
         ]
 
 positionedStrip : Color -> Int -> (Int, Int) -> Location -> Element
@@ -200,10 +218,6 @@ positionedStrip col n (w, h) (x,y) =
         position = midTopAt xpos ypos
     in hexStripElement h col n
         |> container w h position
-
-hitBottom : Int -> Int -> Int -> Bool
-hitBottom h y n = 
-    y >= h - hHEIGHT h n
 
 drawStrip : Int -> Int -> Strip -> Element
 drawStrip w h strip = positionedStrip strip.color strip.n (w,h) strip.loc
@@ -227,15 +241,15 @@ buttonBar w gameState =
     let launchButtons side = map (makeButton side) gameState
         leftButtons = flow right <| launchButtons L
         rightButtons = flow left <| launchButtons R
-        pad = (w - ((widthOf againButton) + 2 * (widthOf leftButtons) + 40) ) // 2
+        pad = (w - ((widthOf againButton) + 2 * (widthOf leftButtons)) ) // 2
         barHeight = 40
         barGround = collage w barHeight [rect (tf w) (tf barHeight) |> filled black]
         buttons = flow right 
             [ spacer pad 10
             , leftButtons
-            , spacer 20 10
+            , spacer 5 10
             , againButton
-            , spacer 20 10
+            , spacer 5 10
             , rightButtons
             , spacer pad 10 
             ]

@@ -7,14 +7,16 @@
   <script src="build/Combo.js"></script>
   <style>
   body {
+    margin 0;
+    padding 0;
     background-image: url('resources/texture.png');
     background-color: #d3d7cf;
     font-family: "Helvetica Neue", "Lucida Grande","Trebuchet MS","Bitstream Vera Sans",Verdana,Helvetica,sans-serif;
     font-size: 14px;
   }
   #comboPanel {
-    width:  320px;
-    height: 480px;
+    width:  100%;
+    height: 100%;
     background-color: black;
     color: white;
   }
@@ -35,17 +37,9 @@
 </head>
 
 <body>
-<div id="column">
-  <h1>Combining Lengths</h1>
-
-  <p>The black rectangle contains the Elm program. 
-<!--      Based on <a href="http://github.com/evancz/elm-html-and-js">this demo</a>.
- -->  
-  </p>
 
   <div id="comboPanel"></div>
 
-</div>
 </body>
 
 <script type="text/javascript">

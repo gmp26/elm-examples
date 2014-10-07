@@ -34,6 +34,8 @@ size h = tf h / (1.8 * tf grain)
 
 type Location = (Int, Int) 
 
+type Color = String
+
 type Strip  =   { i : Int
                 , color : Color
                 , loc : Location
@@ -46,14 +48,14 @@ type Strip  =   { i : Int
 data Side = L | R | None
 
 
-baseStrip   = {v = (0,0), side = None, i = -1,  color = red, loc = (-40,-300),  n = 3, dropKey = 10}
+baseStrip   = {v = (0,0), side = None, i = -1,  color = "red", loc = (-40,-300),  n = 3, dropKey = 10}
 
-strip_1     =   {baseStrip | i <- -1,  color <- red, loc <- (-40,-300),  n <- 3}
-strip0      =   {baseStrip | i <- 0,  color <- green, loc <- (0,-300),  n <- 5}
-strip1      =   {baseStrip | i <- 1,  color <- lightBlue, loc <- (40,-300),  n <- 6}
+strip_1     =   {baseStrip | i <- -1,  color <- "red", loc <- (-40,-300),  n <- 3}
+strip0      =   {baseStrip | i <- 0,  color <- "green", loc <- (0,-300),  n <- 5}
+strip1      =   {baseStrip | i <- 1,  color <- "blue", loc <- (40,-300),  n <- 6}
 
 type GameState  =   { strips    : [Strip]       -- all strips (or undropped maybe?)
-                    , dropped   : [Strip]       -- strips currently dropped - in drop order
+                    , dropped   : [Strip]       -- as yet unused
                     }
 
 data State      =   Start | Play GameState | GameOver
@@ -88,7 +90,7 @@ launch gs clickedIndex side s  =
                     L -> -100
                     R -> 100
                     otherwise -> 0
-    in  if clickedIndex == s.i
+    in if clickedIndex == s.i && s.side == None
         then    {s| v   <-  (0, 20)
                 , side <- side
                 , dropKey <- alreadyDroppedHexes side s gs 
@@ -104,17 +106,17 @@ moveStrip w h gs s =
     let sign =  if  | s.side == L -> -1
                     | s.side == R -> 1
                     | otherwise -> 0
-        separation s h = hexW h * sign // 2
-        stack = alreadyDroppedHexes s.side s gs - s.n
+        separation = hexW h * sign // 2
+        stack = alreadyDroppedHexes s.side s gs
         -- leftStack = watch "lStack" <| alreadyDroppedHexes L s gs
-        -- rightStack = watch "rStack" <| alreadyDroppedHexes R s gs
+        rightStack = watch "rStack" <| alreadyDroppedHexes R s gs
         ggg = watch "GameState" gs 
 
     in if hitBottom h (snd s.loc) s.n (h - stripHeight h stack)
         then    {s| v <- (0, 0)
-                ,   loc <- (separation s h,  (h - stripHeight h stack - stripHeight h s.n))
+                ,   loc <- (separation,  (h - stripHeight h stack - stripHeight h s.n))
                 }
-        else    {s| loc <- (separation s h + fst s.v, snd s.loc + snd s.v) }
+        else    {s| loc <- (separation + fst s.v, snd s.loc + snd s.v) }
 
 drop : Int -> Int -> State -> State
 drop w h screen =
@@ -222,10 +224,7 @@ stripHeight h n = n * hexH h
 
 hexStrip : Int -> Color -> Int -> Element
 hexStrip h col n = 
-    let url = "media/"  ++  (if  | col == lightBlue  -> "blue"
-                                 | col == red        -> "red"
-                                 | col == green      -> "green"
-                            ) ++  "Active.png"
+    let url = "media/"  ++  col ++  "Active.png"
 
     in flow down <| map (\i -> fittedImage h h url) [1..n]
 
@@ -266,7 +265,7 @@ render : (Int, Int) -> State -> Element
 render (w,h) screen =
     case screen of
         Start           ->  startScreen w h
-        Play gs  ->  stage w h gs 
+        Play gs         ->  stage w h gs 
         otherwise       ->  asText "Not defined" 
 
 -- PLUMBING

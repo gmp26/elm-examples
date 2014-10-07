@@ -34,6 +34,10 @@ size h = tf h / (1.8 * tf grain)
 
 type Location = (Int, Int) 
 
+type Base   =   {
+                
+}
+
 type Strip  =   { i : Int
                 , color : Color
                 , loc : Location
@@ -42,20 +46,24 @@ type Strip  =   { i : Int
                 , side : Side
                 }
 
--- should a strip drop on left or right?
 data Side = L | R | None
 
-strip_1     =   {i = -1,  color = red,    loc = (-40,-300),  n = 3,  v = (0,0), side = None}
-strip0      =   {i = 0,   color = green,  loc = (0,-300),    n = 5,  v = (0,0), side = None}
-strip1      =   {i = 1,   color = lightBlue,   loc = (40,-300),   n = 6,  v = (0,0), side = None}   
 
-type GameState  =   {strips : [Strip]}
+baseStrip   = {v = (0,0), side = None, i = -1,  color = red, loc = (-40,-300),  n = 3}
+
+strip_1     =   {baseStrip | i <- -1,  color <- red, loc <- (-40,-300),  n <- 3}
+strip0      =   {baseStrip | i <- 0,  color <- green, loc <- (0,-300),  n <- 5}
+strip1      =   {baseStrip | i <- 1,  color <- lightBlue, loc <- (40,-300),  n <- 6}
+
+type GameState  =   { strips    : [Strip]       -- all strips (or undropped maybe?)
+                    , dropped   : [Strip]       -- strips currently dropped - in drop order
+                    }
 
 data State      =   Start | Play GameState | GameOver
 
 
 initialGameState : State
-initialGameState =  Play {strips = [strip_1, strip0, strip1]}
+initialGameState =  Play {strips = [strip_1, strip0, strip1], dropped = []}
 
 initialState : State
 initialState = Start
@@ -106,7 +114,7 @@ moveStrip w h gs s =
 drop : Int -> Int -> State -> State
 drop w h screen =
     case screen of
-        Play gs     ->  Play {strips = map (moveStrip w (h - widthOf againButton) gs) gs.strips}
+        Play gs     ->  Play {gs | strips <- map (moveStrip w (h - widthOf againButton) gs) gs.strips}
         otherwise   -> screen
 
 --returns strips at start position. Should be tweened.
@@ -125,12 +133,12 @@ update event screen = case (unwatch "events" event) of
 
     Launch index side   
                 ->  case screen of
-                        Play gs -> Play {strips = map (launch index side) gs.strips}
+                        Play gs -> Play {gs | strips <- map (launch index side) gs.strips}
                         otherwise   -> screen
 
     Drop w h    ->  drop w h screen
     Again       ->  case screen of
-                        Play gs -> Play {strips = map resetStrip gs.strips}
+                        Play gs -> Play {gs | strips <- map resetStrip gs.strips}
                         otherwise   -> screen
                     
     otherwise   ->  initialState

@@ -27,16 +27,12 @@ again = GI.input ()         -- play again, reset, another strip set?
 
 -- MODEL
 grain : Int
-grain = 22
+grain = 27
 
 size : Int -> Float 
 size h = tf h / (1.8 * tf grain)
 
 type Location = (Int, Int) 
-
-type Base   =   {
-                
-}
 
 type Strip  =   { i : Int
                 , color : Color
@@ -44,12 +40,13 @@ type Strip  =   { i : Int
                 , n : Int
                 , v : (Int, Int)
                 , side : Side
+                , dropKey : Int
                 }
 
 data Side = L | R | None
 
 
-baseStrip   = {v = (0,0), side = None, i = -1,  color = red, loc = (-40,-300),  n = 3}
+baseStrip   = {v = (0,0), side = None, i = -1,  color = red, loc = (-40,-300),  n = 3, dropKey = 10}
 
 strip_1     =   {baseStrip | i <- -1,  color <- red, loc <- (-40,-300),  n <- 3}
 strip0      =   {baseStrip | i <- 0,  color <- green, loc <- (0,-300),  n <- 5}
@@ -68,28 +65,35 @@ initialGameState =  Play {strips = [strip_1, strip0, strip1], dropped = []}
 initialState : State
 initialState = Start
 
-stackHeight : Side -> GameState -> Int
-stackHeight side gs =
+-- This returns the number of hexes dropped on each side.
+stackHexes : Side -> GameState -> Int
+stackHexes side gs =
     let stack  = filter (\strip -> strip.side == side) gs.strips
     in  foldr (\strip x -> strip.n + x) 0 (stack) 
+
+-- This returns the number of hexes dropped on a side before a given strip.
+alreadyDroppedHexes : Side -> Strip -> GameState -> Int
+alreadyDroppedHexes side strip gs =
+    let stack  = filter (\s -> s.side == side && s.dropKey < strip.dropKey) gs.strips
+    in  foldr (\aStrip x -> aStrip.n + x) 0 (stack) 
 
 -- UPDATE
 
 data Event = GotoPlay | Launch Int Side | Drop Int Int | Again
 
 -- update velocity of a clicked strip, leaving the others untouched
-launch : Int -> Side -> Strip -> Strip
-launch clickedIndex side s  =   let offset = case side of
-                                                L -> -100
-                                                R -> 100
-                                                otherwise -> 0
-                                in  {s| v   <-  if clickedIndex == s.i
-                                                then (0, 20)
-                                                else s.v
-                                    ,   side <- if clickedIndex == s.i
-                                                then side
-                                                else s.side
-                                    }
+launch : GameState -> Int -> Side -> Strip -> Strip
+launch gs clickedIndex side s  =   
+    let offset = case side of
+                    L -> -100
+                    R -> 100
+                    otherwise -> 0
+    in  if clickedIndex == s.i
+        then    {s| v   <-  (0, 20)
+                , side <- side
+                , dropKey <- alreadyDroppedHexes side s gs 
+                }
+        else    s   -- strip unchanged
 
 hitBottom : Int -> Int -> Int -> Int -> Bool
 hitBottom h y n travelh = 
@@ -101,9 +105,10 @@ moveStrip w h gs s =
                     | s.side == R -> 1
                     | otherwise -> 0
         separation s h = hexW h * sign // 2
-        stack = stackHeight s.side gs - s.n
-        leftStack = watch "lStack" <| stackHeight L gs
-        rightStack = watch "rStack" <| stackHeight R gs
+        stack = alreadyDroppedHexes s.side s gs - s.n
+        -- leftStack = watch "lStack" <| alreadyDroppedHexes L s gs
+        -- rightStack = watch "rStack" <| alreadyDroppedHexes R s gs
+        ggg = watch "GameState" gs 
 
     in if hitBottom h (snd s.loc) s.n (h - stripHeight h stack)
         then    {s| v <- (0, 0)
@@ -133,7 +138,7 @@ update event screen = case (unwatch "events" event) of
 
     Launch index side   
                 ->  case screen of
-                        Play gs -> Play {gs | strips <- map (launch index side) gs.strips}
+                        Play gs -> Play {gs | strips <- map (launch gs index side) gs.strips}
                         otherwise   -> screen
 
     Drop w h    ->  drop w h screen

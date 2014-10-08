@@ -12,7 +12,7 @@ type Game = {animating : Bool, width: Int, height : Int }
 initialState = Start
 
 animationSignal : Signal Action
-animationSignal = (\(w,h) -> Animate w h) <~ (keepIf isAnimatingSignal (300,300) Mouse.position)
+animationSignal = (\(w,h) -> Animate w h) <~ (keepWhen isAnimatingSignal (300,300) Mouse.position)
 
 clickSignal : Signal Action
 clickSignal = (\s -> Click) <~ Mouse.clicks
@@ -20,10 +20,11 @@ clickSignal = (\s -> Click) <~ Mouse.clicks
 isAnimating : State -> Bool
 isAnimating state = case state of
     Play game -> game.animating
-    otherwise -> false  
+    otherwise -> False  
 
 isAnimatingSignal : Signal Bool
-isAnimatingSignal = stateSignal
+-- isAnimatingSignal = constant True
+isAnimatingSignal = (always True) <~ stateSignal
 
 eventSignal : Signal Action
 eventSignal = merges    [ animationSignal

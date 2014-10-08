@@ -329,7 +329,7 @@ iwh = (300, 300)
 {- dropRepeats -}
 
 animationSignal : Signal Event
-animationSignal = (\(w,h) -> Animate w h) <~ (keepWhen isAnimatingSignal iwh <| sampleOn (fps 60) Window.dimensions)
+animationSignal = (\(w,h) -> Animate w h) <~ (sampleOn (fps 60) Window.dimensions)
 
 isAnimatingSignal : Signal Bool
 isAnimatingSignal = {- (always True) <~ stateSignal -}

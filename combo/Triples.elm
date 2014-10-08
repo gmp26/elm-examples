@@ -1,6 +1,7 @@
 module Tuples where
 
 import Set as S
+import Dict as D
 
 type Digit = Int  -- 0..9
 
@@ -32,10 +33,23 @@ reachables digits =
             in [x + y, x - y, x] ++ reachables' ++ (xAndReachables x) ++ (xDiffReachables x)
 
 -- treating n as a list of digits, return n with all reachable totals
-nReachables : Int -> Element
-nReachables n = (n, sortedNonZeros n
-                    |> reachables >> S.fromList >> S.toList >> sort)
-                    |> asText
+nReachables : Int -> ([Digit], [Int])
+nReachables n = 
+    let sn = sortedNonZeros n
+    in (sn, sortedNonZeros n
+            |> reachables >> S.fromList >> S.toList >> sort)
+
+dictReachables : Int -> [([Digit], [Int])]
+dictReachables n = map nReachables [1..n]
+                    |> D.fromList
+                    |> D.toList
+
+--main : Element
+--main =  flow down <| map (asText << nReachables) [1..999]
 
 main : Element
-main =  flow down <| map nReachables [1..999]
+main = dictReachables 999
+        |> D.fromList
+        |> D.toList
+        |> map asText
+        |> flow down

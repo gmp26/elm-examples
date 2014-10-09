@@ -216,18 +216,18 @@ buttonBar w gs =
     let launchButtons side = map (makeButton side) gs.strips
         leftButtons = flow right <| launchButtons L
         rightButtons = flow left <| launchButtons R
-        pad = (w - ((widthOf againButton) + 2 * (widthOf leftButtons)) ) // 2
+        padAgainSpacer = spacer 5 10 -- pad around againButton
+        pad = (w - ((widthOf againButton) + 2 * (widthOf leftButtons + widthOf padAgainSpacer)) ) // 2
         barHeight = 40
         -- reduce background rect width to prevent horizontal scroll visibility jitter. 
         barGround = collage w barHeight [rect (tf <| w - 2) (tf barHeight) |> filled black |> move (1,0)]
         buttons = flow right 
             [ spacer pad 10
             , leftButtons
-            , spacer 5 10
+            , padAgainSpacer
             , againButton
-            , spacer 5 10
+            , padAgainSpacer
             , rightButtons
-            , spacer pad 10 
             ]
     in  flow outward
         [ barGround

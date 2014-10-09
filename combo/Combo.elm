@@ -159,18 +159,20 @@ moveStrip w h delta gs s =
 
     in if | s.v > 10
             -- dropping
-            -> if hitBottom h (snd s.loc) s.n (h - stripHeight h stack)
+            -> let boxSize = h - stripHeight h stack
+               in if hitBottom h (snd s.loc) s.n boxSize
                 then    {s| v <- 0
-                        ,   loc <- (separation,  (h - stripHeight h stack - stripHeight h s.n))
+                        ,   loc <- (separation,  (boxSize - stripHeight h s.n))
                         }
                 else    {s| loc <- (separation, snd s.loc + dy) }
 
         | s.v > 0 && s.v < 10
             -- diffing
-            -> let diffDrop = log "diffDrop" <| diffCount gs
-               in if hitBottom h (snd s.loc) s.n (h - stripHeight h (stack - diffDrop))
+            -> let diffDrop = diffCount gs
+                   boxSize = h - stripHeight h (stack - diffDrop)
+               in if hitBottom h (snd s.loc) s.n boxSize
                     then    {s| v <- 0
-                            ,   loc <- (separation,  (h - stripHeight h (stack - diffDrop) - stripHeight h s.n))
+                            ,   loc <- (separation,  (boxSize - stripHeight h s.n))
                             }
                     else    {s| loc <- (separation, snd s.loc + dy) }
 

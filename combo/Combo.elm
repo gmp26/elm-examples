@@ -19,8 +19,8 @@ tf : Int -> Float
 tf = toFloat
 
 -- INPUTS
-startDrop : GI.Input (Int, Side)
-startDrop = GI.input (0, None)      -- strip 0 is the initial value of the signal
+startDrop : GI.Input (Strip, Side)
+startDrop = GI.input (strip0, None)      -- strip 0 is the initial value of the signal
 
 again : GI.Input ()                 -- undrops
 again = GI.input ()         
@@ -36,8 +36,7 @@ type Location = (Int, Int)
 
 type Color = String
 
-type Strip  =   { i : Int
-                , color : Color
+type Strip  =   { color : Color
                 , loc : Location
                 , n : Int
                 , v : (Int, Int)
@@ -49,13 +48,14 @@ type Strip  =   { i : Int
 data Side = L | R | None
 
 
-baseStrip   = {v = (0,0), side = None, i = -1,  color = "red"
+baseStrip   = {v = (0,0), side = None, color = "red"
               , loc = (-40,-300),  n = 3, dropKey = 10, diffed = False}
 
 -- initial strips
-strip_1     =   {baseStrip | i <- -1,  color <- "red", loc <- (-40,-300),  n <- 3}
-strip0      =   {baseStrip | i <- 0,  color <- "green", loc <- (0,-300),  n <- 5}
-strip1      =   {baseStrip | i <- 1,  color <- "blue", loc <- (40,-300),  n <- 6}
+strip_1     =   {baseStrip | color <- "red", loc <- (-40,-300),  n <- 3}
+strip0      =   {baseStrip | color <- "green", loc <- (0,-300),  n <- 5}
+strip1      =   {baseStrip | color <- "blue", loc <- (40,-300),  n <- 6}
+
 
 type GameState  =   { strips    : [Strip]       -- all strips (or undropped maybe?)
                     }
@@ -84,12 +84,14 @@ alreadyDroppedHexes side strip gs =
 
 -- UPDATE
 
-data Event = GotoPlay | Launch Int Side | Animate Int Int | Again | Diff
+data Action = GotoPlay | Launch Strip Side | Animate Int Int | Again | Diff
+
+type Event = (Time, Action)
 
 -- update velocity of a clicked strip, leaving the others untouched
-launch : GameState -> Int -> Side -> Strip -> Strip
-launch gs clickedIndex side s  =   
-    if clickedIndex == s.i && s.side == None
+launch : GameState -> Strip -> Side -> Strip -> Strip
+launch gs clickedStrip side s  =   
+    if clickedStrip == s && s.side == None
         then    {s| v   <-  (0, 20)
                 , side <- side
                 , dropKey <- alreadyDroppedHexes side s gs 
@@ -121,7 +123,7 @@ moveStrip w h gs s =
         separation = hexW h * sign // 2
         stack = alreadyDroppedHexes s.side s gs
         allDiffed = all (\s -> s.diffed) gs.strips
-        debug_gs = watch "GameState" gs
+        debug_gs = watch "GameState red" <| head gs.strips
 
     in if | snd s.v > 10
             -- dropping
@@ -157,38 +159,38 @@ isMoving  : Strip -> Bool
 isMoving strip = strip.v /= (0,0)
 
 animate : Int -> Int -> State -> State
-animate w h screen =
-    case screen of
+animate w h state =
+    case state of
         Play gs ->
             Play    {gs | strips <- map (moveStrip w (h - widthOf againButton) gs) gs.strips
                     }
-        otherwise   -> screen
+        otherwise   -> state
 
 -- launches a strip upwards
 raiseStrip : Strip -> Strip
 raiseStrip s = {s | v <- (0, -50)}
                 
 update : Event -> State -> State
-update event screen = case event of
-    GotoPlay    ->  case screen of
-                        Play _      -> screen
+update event state = case event of
+    (_,GotoPlay)    ->  case state of
+                        Play _      -> state
                         otherwise   -> initialGameState
 
-    Launch index side   
-                ->  case screen of
-                        Play gs -> Play {gs | strips <- map (launch gs index side) gs.strips
+    (_, Launch strip side)   
+                ->  case state of
+                        Play gs -> Play {gs | strips <- map (launch gs strip side) gs.strips
                                         }
-                        otherwise   -> screen
+                        otherwise   -> state
 
-    Animate w h ->  animate w h screen
+    (_, Animate w h) ->  animate w h state
 
-    Diff        ->  case screen of
+    (_, Diff)        ->  case state of
                         Play gs -> Play {gs | strips <- map (relaunch gs) gs.strips }
 
-    Again       ->  case screen of
+    (_, Again)       ->  case state of
                         Play gs -> Play {gs | strips <- map raiseStrip gs.strips
                                         }
-                        otherwise   -> screen
+                        otherwise   -> state
                     
     otherwise   ->  initialState
 
@@ -201,7 +203,7 @@ makeButton side strip =
             let colorPartUrl = "media/" ++ strip.color
                 normal  = GE.image 40 40 <| colorPartUrl ++ ".png"
                 active  = GE.image 40 40 <| colorPartUrl ++ "Active.png"
-            in GI.customButton startDrop.handle (strip.i, side) normal active active
+            in GI.customButton startDrop.handle (strip, side) normal active active
         else
             -- this strip is already dropped 
             GE.image 40 40 <| "media/inActive.png" 
@@ -308,20 +310,20 @@ startScreen : Int -> Int -> Element
 startScreen w h = container w h middle [markdown| # Click to start |]
 
 render : (Int, Int) -> State -> Element
-render (w,h) screen =
-    case screen of
+render (w,h) state =
+    case state of
         Start           ->  startScreen w h
         Play gs         ->  stage w h gs 
         otherwise       ->  asText "Not defined" 
 
 -- PLUMBING
-startClick : Signal Event
+startClick : Signal Action
 startClick = (always GotoPlay) <~ Mouse.clicks  
 
-dropStart : Signal Event
-dropStart = (\(i, side) -> Launch i side) <~ startDrop.signal
+dropStart : Signal Action
+dropStart = (\(strip, side) -> Launch strip side) <~ startDrop.signal
 
-againSignal : Signal Event
+againSignal : Signal Action
 againSignal = (always Again) <~ again.signal 
 
 eventSignal : Signal Event
@@ -331,11 +333,12 @@ eventSignal = merges    [ startClick
                         , diffSignal
                         , animationSignal
                         ]
+                |> timestamp
 
 droppingSignal = (2.2 * second) `since` (merge dropStart againSignal)
 diffSignal     = (always Diff) <~ delay (3 * second) dropStart 
 
-animationSignal : Signal Event
+animationSignal : Signal Action
 -- animationSignal = (\(w,h) -> Animate w h) <~ sampleOn (fpsWhen 60 droppingSignal) Window.dimensions
 animationSignal = (\(w,h) -> Animate w h) <~ sampleOn (fps 60) Window.dimensions
 

@@ -43,7 +43,7 @@ speed : Float
 speed = sPerFrame          -- pixels per frame if v == 1
 
 framesPerSec : Float
-framesPerSec = 10
+framesPerSec = 30
 
 sPerFrame : Float
 sPerFrame = 1/framesPerSec
@@ -57,14 +57,14 @@ type Strip  =   { color : Color
                 , n : Int
                 , v : Float
                 , side : Side
-                , dropped : Bool
+                , dropped : Maybe Int
                 }
 
 data Side = L | R | None
 
 
 baseStrip   = {v = 0, side = None, color = "red"
-              , loc = (-40,-300),  n = 3, dropped = False}
+              , loc = (-40,-300),  n = 3, dropped = Nothing}
 
 -- initial strips
 strip_1     =   {baseStrip | color <- "red", loc <- (-40,-300),  n <- 3}
@@ -74,7 +74,7 @@ strip1      =   {baseStrip | color <- "blue", loc <- (40,-300),  n <- 6}
 
 type GameState  =   { strips    : [Strip]
                     , diffTime  : Maybe Time    -- time to do difference drop
-                     }
+                    }
 
 data State      =   Start | Play GameState | GameOver
 
@@ -87,25 +87,33 @@ initialGameState =  Play {strips = [strip_1, strip0, strip1]
 initialState : State
 initialState = Start
 
--- This returns the number of hexes dropped on each side.
-stackHexes : Side -> GameState -> Int
-stackHexes side gs =
-    let stack  = filter (\strip -> strip.side == side) gs.strips
-    in  foldr (\strip x -> strip.n + x) 0 (stack) 
-
--- This returns the number of hexes dropped on a side before a given strip.
--- i.e. the number the given strip should sit on - so don't count it too.
+-- This returns the number of hexes dropped on a side *beforeOrIncluding* a given strip.
+-- if boi is (<) then don't include the given strip
+-- if boi is (<=) then do
 alreadyDroppedHexes : Side -> Strip -> GameState -> Int
 alreadyDroppedHexes side strip gs =
-    let stack  = filter (\s -> s.side == side) gs.strips
-        stackLength = foldr (\aStrip x -> aStrip.n + x) 0 (stack)
-    in if strip.dropped then stackLength - strip.n else stackLength
+    let droppedBefore s1 s2  = 
+            case (s1.dropped, s2.dropped) of
+                (Just m, Just n) -> m < n
+                otherwise -> False
+        stack  = filter (\s -> s.side == side && s `droppedBefore` strip) gs.strips
+    in foldr (\aStrip x -> aStrip.n + x) 0 (stack)
 
 dropCount : GameState -> Int
-dropCount gs = filter (\strip -> strip.dropped) gs.strips |> length
+dropCount gs = filter (\strip -> strip.dropped /= Nothing) gs.strips |> length
+
+sideDropCount : Side -> GameState -> Int
+sideDropCount side gs = 
+    let sideStrips = filter (\strip -> strip.dropped /= Nothing && strip.side == side) gs.strips
+    in foldr (\aStrip x -> aStrip.n + x) 0 (sideStrips)
 
 allDropped : GameState -> Bool
-allDropped gs = all (\strip -> strip.dropped) gs.strips
+allDropped gs = all (\strip -> strip.dropped /= Nothing) gs.strips
+
+
+diffCount : GameState -> Int
+diffCount gs = 
+    min (sideDropCount L gs) (sideDropCount R gs)
 
 --
 -- UPDATE
@@ -116,17 +124,17 @@ type Event = (Time, Action)
 
 -- update velocity of a clicked strip, leaving the others untouched
 launch : GameState -> Strip -> Side -> Strip -> Strip
-launch gs clickedStrip side s  =   
+launch gs clickedStrip side s  =
     if clickedStrip == s
         then    {s| v   <-  20
                 , side <- side
-                , dropped <- True 
+                , dropped <- Just <| dropCount gs 
                 }
         else    s   -- strip unchanged
 
 -- relaunch a dropped strip
 relaunch : GameState -> Strip -> Strip
-relaunch gs s = if s.dropped then {s| v <- 5} else s
+relaunch gs s = if s.dropped /= Nothing then {s| v <- 5} else s
 
 -- end stop when dropping
 hitBottom : Int -> Int -> Int -> Int -> Bool
@@ -159,11 +167,12 @@ moveStrip w h delta gs s =
 
         | s.v > 0 && s.v < 10
             -- diffing
-            -> if hitBottom h (snd s.loc) s.n (h - stripHeight h (stack - 1))
-                then    {s| v <- 0
-                        ,   loc <- (separation,  (h - stripHeight h (stack - 1) - stripHeight h s.n))
-                        }
-                else    {s| loc <- (separation, snd s.loc + dy) }
+            -> let diffDrop = log "diffDrop" <| diffCount gs
+               in if hitBottom h (snd s.loc) s.n (h - stripHeight h (stack - diffDrop))
+                    then    {s| v <- 0
+                            ,   loc <- (separation,  (h - stripHeight h (stack - diffDrop) - stripHeight h s.n))
+                            }
+                    else    {s| loc <- (separation, snd s.loc + dy) }
 
         | s.v < 0
             -- raising
@@ -171,7 +180,7 @@ moveStrip w h delta gs s =
                 then    {s| v <- 0
                         ,   loc <- (separation, -(stripHeight h s.n))
                         ,   side <- None
-                        ,   dropped <- False
+                        ,   dropped <- Nothing
                         }
                 else    {s| loc <- (separation, snd s.loc + dy) }
 
@@ -371,7 +380,6 @@ eventSignal = merges    [ startClick
 
 
 animationSignal : Signal Action
--- animationSignal = (\(w,h) -> Animate w h) <~ sampleOn (fpsWhen 60 droppingSignal) Window.dimensions
 animationSignal = (\((w,h), delta) -> Animate w h delta) <~ ((,) <~ Window.dimensions ~ (fps framesPerSec))
 
 

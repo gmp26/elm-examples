@@ -52,28 +52,34 @@ type Location = (Int, Int)
 
 type Color = String
 
-type Strip  =   { color : Color
-                , loc : Location
-                , n : Int
-                , v : Float
-                , side : Side
-                , dropped : Maybe Int
+data Animation = Dropping | Raising | Diffing | UnDiffing
+type Schedule  = [(Time, Maybe Animation)]
+
+type Strip  =   { color     : Color
+                , loc       : Location
+                , n         : Int
+                , v         : Float
+                , side      : Side
+                , dropped   : Maybe Int
+                , animation : Maybe Animation
                 }
 
 data Side = L | R | None
 
 
 baseStrip   = {v = 0, side = None, color = "red"
-              , loc = (-40,-300),  n = 3, dropped = Nothing}
+              , loc = (-40,-300),  n = 3, dropped = Nothing, animation = Nothing}
 
 -- initial strips
 strip_1     =   {baseStrip | color <- "red", loc <- (-40,-300),  n <- 3}
 strip0      =   {baseStrip | color <- "green", loc <- (0,-300),  n <- 5}
 strip1      =   {baseStrip | color <- "blue", loc <- (40,-300),  n <- 6}
 
-type GameState  =   { strips    : [Strip]
-                    , diffTime  : Maybe Time    -- time to do difference drop
-                    , reached   : [Int]
+type GameState  =   { strips        : [Strip]
+                    , schedule      : Schedule
+                    , diffTime      : Maybe Time    -- time to do difference drop
+                    , unDiffTime    : Maybe Time    -- time to undo difference drop
+                    , reached       : [Int]         -- the numbers we reached
                     }
 
 data State      =   Start | Play GameState | GameOver
@@ -81,13 +87,24 @@ data State      =   Start | Play GameState | GameOver
 type Reached = [Int]
 
 initialGameState : State
-initialGameState =  Play {strips = [strip_1, strip0, strip1]
-                         , diffTime = Nothing
-                         , reached = []
+initialGameState =  Play {strips        = [strip_1, strip0, strip1]
+                         , schedule     = []
+                         , diffTime     = Nothing
+                         , unDiffTime   = Nothing
+                         , reached      = []
                          }
 
 initialState : State
 initialState = Start
+
+velocity : Maybe Animation -> Float
+velocity animation = case animation of
+    Nothing         -> 0
+    Just Dropping   -> 20
+    Just Diffing    -> 5
+    Just UnDiffing  -> -20
+    Just Raising    -> -50
+
 
 -- This returns the number of hexes dropped on a side before a given strip.
 alreadyDroppedHexes : Side -> Strip -> GameState -> Int
@@ -110,6 +127,9 @@ sideDropCount side gs =
 allDropped : GameState -> Bool
 allDropped gs = all (\strip -> strip.dropped /= Nothing) gs.strips
 
+anyDropped : GameState -> Bool
+anyDropped gs = any (\strip -> strip.dropped /= Nothing) gs.strips
+
 diffCount : GameState -> Int
 diffCount gs = min (sideDropCount L gs) (sideDropCount R gs)
 
@@ -124,15 +144,21 @@ type Event = (Time, Action)
 launch : GameState -> Strip -> Side -> Strip -> Strip
 launch gs clickedStrip side s  =
     if clickedStrip == s
-        then    {s| v   <-  20
-                , side <- side
-                , dropped <- Just <| dropCount gs 
+        then    {s| v   <-  velocity <| Just Dropping
+                ,   animation <- Just Dropping
+                ,   side <- side
+                ,   dropped <- Just <| dropCount gs 
                 }
         else    s   -- strip unchanged
 
 -- relaunch a dropped strip
 relaunch : GameState -> Strip -> Strip
-relaunch gs s = if s.dropped /= Nothing then {s| v <- 5} else s
+relaunch gs s = 
+    if s.dropped /= Nothing 
+        then    {s| v   <- velocity <| Just Diffing
+                ,   animation <- Just Diffing
+                } 
+        else s
 
 -- end stop when dropping
 hitBottom : Int -> Int -> Int -> Int -> Bool
@@ -149,46 +175,39 @@ moveStrip w h delta gs s =
                     | otherwise -> 0
         separation = hexW h * sign // 2
         stack = alreadyDroppedHexes s.side s gs
-        dy = s.v * speed * delta |> round
-        debugV = watch "v" s.v
-        debugS = watch "speed" speed
-        debugD = watch "delta" delta
+        dy = (velocity s.animation) * speed * delta |> round
+        debugAnim = watch "animation" s.animation
         --debug_gs = unwatch "GameState red" <| head gs.strips
 
-    in if | s.v > 10
-            -- dropping
+    in case s.animation of
+        Just Dropping
             -> let boxSize = h - stripHeight h stack
                in if hitBottom h (snd s.loc) s.n boxSize
-                then    {s| v <- 0
+                then    {s| animation <- Nothing
                         ,   loc <- (separation,  (boxSize - stripHeight h s.n))
                         }
                 else    {s| loc <- (separation, snd s.loc + dy) }
 
-        | s.v > 0 && s.v < 10
-            -- diffing
+        Just Diffing
             -> let diffDrop = diffCount gs
                    boxSize = h - stripHeight h (stack - diffDrop)
                in if hitBottom h (snd s.loc) s.n boxSize
-                    then    {s| v <- 0
+                    then    {s| animation <- Nothing
                             ,   loc <- (separation,  (boxSize - stripHeight h s.n))
                             }
                     else    {s| loc <- (separation, snd s.loc + dy) }
 
-        | s.v < 0
-            -- raising
+        Just Raising
             -> if aboveTop h s
-                then    {s| v <- 0
+                then    {s| animation <- Nothing
                         ,   loc <- (separation, -(stripHeight h s.n))
                         ,   side <- None
                         ,   dropped <- Nothing
                         }
                 else    {s| loc <- (separation, snd s.loc + dy) }
 
-        | otherwise 
-            -> {s| loc <- (separation, snd s.loc) }
-
-isMoving  : Strip -> Bool
-isMoving strip = strip.v /= 0
+        otherwise
+            ->  s
 
 animate : Int -> Int -> Float -> State -> State
 animate w h delta state =
@@ -200,7 +219,7 @@ animate w h delta state =
 
 -- launches a strip upwards
 raiseStrip : Strip -> Strip
-raiseStrip s = {s | v <- -50}
+raiseStrip s = {s | animation <- Just Raising}
                 
 update : Event -> State -> State
 update event state = watch "state" <| case event of
@@ -210,14 +229,15 @@ update event state = watch "state" <| case event of
 
     (t, Launch strip side) ->  case state of
         Play gs ->
-            Play {gs | strips <- map (launch gs strip side) gs.strips
-                 ,     diffTime <- Just (t + 2*second)
+            Play {gs |  strips <- map (launch gs strip side) gs.strips
+--                        schedule <- insert ((t + 2*second), Just Diffing) s.schedule 
+                 ,      diffTime <- Just (t + 2*second)
                  }
         otherwise   -> state
 
     (t, Animate w h delta) -> case state of
         Play gs ->  
-            let timeToDiff = (allDropped gs) && maybe False (\dt -> dt < t) gs.diffTime
+            let timeToDiff = (anyDropped gs) && maybe False (\dt -> dt < t) gs.diffTime
                 -- console = log "(t, dt) = " (t, gs.diffTime)
             in if timeToDiff
                 then Play {gs | strips <- map (relaunch gs) gs.strips
@@ -375,9 +395,6 @@ eventSignal = merges    [ startClick
                         , animationSignal
                         ]
                 |> timestamp
-
--- droppingSignal = (2.2 * second) `since` (merge dropStart againSignal)
-
 
 animationSignal : Signal Action
 animationSignal = (\((w,h), delta) -> Animate w h delta) <~ ((,) <~ Window.dimensions ~ (fps framesPerSec))

@@ -34,13 +34,13 @@ again = GI.input ()
 -- MODEL
 --
 grain : Int
-grain = 27
+grain = 20
 
 size : Int -> Float 
 size h = tf h / (1.8 * tf grain)
 
 speed : Float
-speed = sPerFrame          -- pixels per frame if v == 1
+speed = 3 * sPerFrame          -- pixels per frame if v == 1
 
 framesPerSec : Float
 framesPerSec = 30
@@ -71,25 +71,24 @@ strip_1     =   {baseStrip | color <- "red", loc <- (-40,-300),  n <- 3}
 strip0      =   {baseStrip | color <- "green", loc <- (0,-300),  n <- 5}
 strip1      =   {baseStrip | color <- "blue", loc <- (40,-300),  n <- 6}
 
-
 type GameState  =   { strips    : [Strip]
                     , diffTime  : Maybe Time    -- time to do difference drop
                     }
 
 data State      =   Start | Play GameState | GameOver
 
+type Reached = [Int]
 
 initialGameState : State
 initialGameState =  Play {strips = [strip_1, strip0, strip1]
                          , diffTime = Nothing
+                         , reached = []
                          }
 
 initialState : State
 initialState = Start
 
--- This returns the number of hexes dropped on a side *beforeOrIncluding* a given strip.
--- if boi is (<) then don't include the given strip
--- if boi is (<=) then do
+-- This returns the number of hexes dropped on a side before a given strip.
 alreadyDroppedHexes : Side -> Strip -> GameState -> Int
 alreadyDroppedHexes side strip gs =
     let droppedBefore s1 s2  = 
@@ -105,15 +104,13 @@ dropCount gs = filter (\strip -> strip.dropped /= Nothing) gs.strips |> length
 sideDropCount : Side -> GameState -> Int
 sideDropCount side gs = 
     let sideStrips = filter (\strip -> strip.dropped /= Nothing && strip.side == side) gs.strips
-    in foldr (\aStrip x -> aStrip.n + x) 0 (sideStrips)
+    in foldr (\aStrip x -> aStrip.n + x) 0 sideStrips
 
 allDropped : GameState -> Bool
 allDropped gs = all (\strip -> strip.dropped /= Nothing) gs.strips
 
-
 diffCount : GameState -> Int
-diffCount gs = 
-    min (sideDropCount L gs) (sideDropCount R gs)
+diffCount gs = min (sideDropCount L gs) (sideDropCount R gs)
 
 --
 -- UPDATE

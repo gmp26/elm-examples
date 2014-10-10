@@ -73,6 +73,7 @@ strip1      =   {baseStrip | color <- "blue", loc <- (40,-300),  n <- 6}
 
 type GameState  =   { strips    : [Strip]
                     , diffTime  : Maybe Time    -- time to do difference drop
+                    , reached   : [Int]
                     }
 
 data State      =   Start | Play GameState | GameOver

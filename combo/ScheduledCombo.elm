@@ -53,7 +53,7 @@ type Location = (Int, Int)
 type Color = String
 
 data Animation = Dropping | Raising | Diffing | UnDiffing
-type Schedule  = [(Time, Maybe Animation)]
+type Timers  = [(Time, Maybe Animation)]
 
 type Strip  =   { color     : Color
                 , loc       : Location
@@ -76,9 +76,7 @@ strip0      =   {baseStrip | color <- "green", loc <- (0,-300),  n <- 5}
 strip1      =   {baseStrip | color <- "blue", loc <- (40,-300),  n <- 6}
 
 type GameState  =   { strips        : [Strip]
-                    , schedule      : Schedule
-                    , diffTime      : Maybe Time    -- time to do difference drop
-                    , unDiffTime    : Maybe Time    -- time to undo difference drop
+                    , timers        : Timers
                     , reached       : [Int]         -- the numbers we reached
                     }
 
@@ -87,10 +85,8 @@ data State      =   Start | Play GameState | GameOver
 type Reached = [Int]
 
 initialGameState : State
-initialGameState =  Play {strips        = [strip_1, strip0, strip1]
-                         , schedule     = []
-                         , diffTime     = Nothing
-                         , unDiffTime   = Nothing
+initialGameState =  Play { strips        = [strip_1, strip0, strip1]
+                         , timers     = []
                          , reached      = []
                          }
 
@@ -104,6 +100,26 @@ velocity animation = case animation of
     Just Diffing    -> 5
     Just UnDiffing  -> -20
     Just Raising    -> -50
+
+schedule : (Time, Maybe Animation) -> Timers -> Timers
+schedule = (::)
+
+-- schedule task timers = task :: timers
+
+
+nextAnimation : Time -> GameState -> GameState
+nextAnimation t gs =
+    if isEmpty gs.timers
+        then gs
+        else 
+            let (ready, notReady) = partition (\tasks -> fst tasks > t) gs.timers
+                perform task s = {s | animation <- snd task}
+            in case ready of
+                []  ->  gs
+                (firstReady :: defer)
+                    ->  { gs |  strips <- map (perform firstReady) gs.strips
+                        ,       timers <- defer ++ notReady
+                        }
 
 
 -- This returns the number of hexes dropped on a side before a given strip.
@@ -222,37 +238,25 @@ raiseStrip : Strip -> Strip
 raiseStrip s = {s | animation <- Just Raising}
                 
 update : Event -> State -> State
-update event state = watch "state" <| case event of
-    (_, GotoPlay) -> case state of
-        Play _      -> state
-        otherwise   -> initialGameState
+update event state = watch "state" <| case state of
+    Start   ->  case event of
+                    (_, GotoPlay)   -> initialGameState
+                    otherwise       ->  state
 
-    (t, Launch strip side) ->  case state of
-        Play gs ->
-            Play {gs |  strips <- map (launch gs strip side) gs.strips
---                        schedule <- insert ((t + 2*second), Just Diffing) s.schedule 
-                 ,      diffTime <- Just (t + 2*second)
-                 }
-        otherwise   -> state
+    Play gs ->  case event of
+        (t, Launch strip side)
+            ->  Play {gs | strips <- map (launch gs strip side) gs.strips
+                         , timers <- schedule ((t + 2*second), Just Diffing) gs.timers
+                     }
 
-    (t, Animate w h delta) -> case state of
-        Play gs ->  
-            let timeToDiff = (anyDropped gs) && maybe False (\dt -> dt < t) gs.diffTime
-                -- console = log "(t, dt) = " (t, gs.diffTime)
-            in if timeToDiff
-                then Play {gs | strips <- map (relaunch gs) gs.strips
-                          ,     diffTime <- Nothing
-                          }
-                else animate w h delta state
-        otherwise   -> state
+        (_, Again)
+            ->  Play {gs | strips <- map raiseStrip gs.strips}
 
-    (_, Again)       ->  case state of
-        Play gs -> Play {gs | strips <- map raiseStrip gs.strips
-                        ,     diffTime <- Nothing
-                        }
-        otherwise   -> state
-                    
-    otherwise   ->  initialState
+        (t, Animate w h delta)
+            ->  let newgs = nextAnimation t gs
+                in Play {newgs | strips <- map (moveStrip w h delta newgs) newgs.strips}
+
+    otherwise -> state
 
 --
 -- DISPLAY

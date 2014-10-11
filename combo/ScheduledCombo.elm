@@ -40,10 +40,10 @@ size : Int -> Float
 size h = tf h / (1.8 * tf grain)
 
 speed : Float
-speed = 3 * sPerFrame
+speed = 6 * sPerFrame
 
 framesPerSec : Float
-framesPerSec = 30
+framesPerSec = 10
 
 sPerFrame : Float
 sPerFrame = 1/framesPerSec
@@ -63,7 +63,6 @@ type Strip  =   { color     : Color             -- also use to identify a strip
 
 
 data Animation = Dropping | Raising | Diffing | UnDiffing
-type Task = {time : Time, animation: Maybe Animation, target: String}
 
 data Side = L | R | None
 
@@ -96,11 +95,13 @@ initialState = Start
 velocity : Maybe Animation -> Float
 velocity animation = case animation of
     Nothing         -> 0
-    Just Dropping   -> 20
-    Just Diffing    -> 5
-    Just UnDiffing  -> -20
+    Just Dropping   -> 30
+    Just Diffing    -> 30
+    Just UnDiffing  -> -30
     Just Raising    -> -50
 
+
+type Task = {runtime : Time, animation: Maybe Animation, target: String}
 schedule : Task -> [Task] -> [Task] 
 schedule = (::)
 -- schedule task tasks = task :: tasks
@@ -110,11 +111,11 @@ nextAnimation t gs =
     if isEmpty gs.tasks
         then gs
         else 
-            let (ready, notReady) = partition (\task -> t > task.time) gs.tasks
+            let (ready, notReady) = partition (\task -> t > task.runtime) gs.tasks
                 perform task s = {s | animation <- if task.target == s.color
                                                         then task.animation
                                                         else s.animation }
-                logT = log "nextAnimation" t
+                -- logT = log "nextAnimation" t
             in case ready of
                 []  ->  gs
                 (firstReady :: defer)
@@ -174,15 +175,6 @@ drop gs clickedStrip side s  =
                 }
         else    s   -- strip unchanged
 
--- diff a dropped strip
---diff : GameState -> Strip -> Strip
---diff gs s = 
---    if s.dropped /= Nothing 
---        then    {s| v   <- velocity <| Just Diffing
---                ,   animation <- Just Diffing
---                } 
---        else s
-
 -- end stop when dropping
 hitBottom : Int -> Int -> Int -> Int -> Bool
 hitBottom h y n travelh = y >= travelh - stripHeight h n
@@ -201,6 +193,7 @@ moveStrip w h delta gs s =
         dy = (velocity s.animation) * speed * delta |> round
         -- debugAnim = watch "animation" s.animation
         -- debug_gs = unwatch "GameState red" <| head gs.strips
+        a = log "animation" (show s.animation)
 
     in case s.animation of
         Just Dropping
@@ -249,7 +242,7 @@ raiseStrip s = {s | animation <- Just Raising}
  
 scheduleManyAt : Maybe Animation -> Float -> [Strip] -> [Task] -> [Task]
 scheduleManyAt anim t strips tasks =
-    let scheduleStrip s tsks = schedule {time=t, animation=anim, target=s.color} tsks
+    let scheduleStrip s tsks = schedule {runtime=t, animation=anim, target=s.color} tsks
         logS = log "scheduleManyAt" ()
     in foldr scheduleStrip tasks strips
 
@@ -422,8 +415,12 @@ eventSignal = merges    [ startClick
                         ]
                 |> timestamp
 
+-- use this to quash fps so we don't hog the cpu
+activitySignal : Signal Bool
+activitySignal = (5 * second) `since` Mouse.clicks
+
 animationSignal : Signal Action
-animationSignal = (\((w,h), delta) -> Animate w h delta) <~ ((,) <~ Window.dimensions ~ (fps framesPerSec))
+animationSignal = (\((w,h), delta) -> Animate w h delta) <~ ((,) <~ Window.dimensions ~ (fpsWhen framesPerSec activitySignal))
 
 
 main : Signal Element

@@ -11,6 +11,7 @@ import Html.Tags (div)
 import Html.Attributes (src, class)
 import Graphics.Input as GI
 import Graphics.Element as GE
+import Scheduler as Tasks
 
 --
 -- HELPERS
@@ -25,7 +26,7 @@ tf = toFloat
 -- INPUTS
 --
 startDrop : GI.Input (Strip, Side)
-startDrop = GI.input (strip0, None) -- (strip0, None) is the initial value of the signal
+startDrop = GI.input (strip0, L) -- (strip0, L) is the initial value of the signal
 
 again : GI.Input ()                 -- undrops
 again = GI.input ()         
@@ -40,10 +41,10 @@ size : Int -> Float
 size h = tf h / (1.8 * tf grain)
 
 speed : Float
-speed = 6 * sPerFrame
+speed = 6 * sPerFrame   -- 6 is good, 1 in debug
 
 framesPerSec : Float
-framesPerSec = 10
+framesPerSec = 60
 
 sPerFrame : Float
 sPerFrame = 1/framesPerSec
@@ -57,25 +58,30 @@ type Strip  =   { color     : Color             -- also use to identify a strip
                 , n         : Int
                 , v         : Float
                 , side      : Side
-                , dropped   : Maybe Int
-                , animation : Maybe Animation
+                , dropOrder : Maybe Int
+                , animation : Animation
                 }
 
 
-data Animation = Dropping | Raising | Diffing | UnDiffing
+-- Whese can apply to an individual Strip and also, independently, to the GameState
+data Animation  = Dropping | Dropped |
+                  Raising | Raised |
+                  Diffing | Diffed |
+                  UnDiffing
 
-data Side = L | R | None
+data Side = L | R
 
-baseStrip   = {v = 0, side = None, color = "red"
-              , loc = (-40,-300),  n = 3, dropped = Nothing, animation = Nothing}
+baseStrip   = {v = 0, side = L, color = "red"
+              , loc = (-40,-300),  n = 3, dropOrder = Nothing, animation = Raised}
 
 -- initial strips
 strip_1     =   {baseStrip | color <- "red", loc <- (-40,-300),  n <- 3}
 strip0      =   {baseStrip | color <- "green", loc <- (0,-300),  n <- 5}
 strip1      =   {baseStrip | color <- "blue", loc <- (40,-300),  n <- 6}
 
-type GameState  =   { strips        : [Strip]       -- all strips
-                    , tasks         : [Task]        -- scheduled tasks
+type GameState  =   { strips        : [Strip]               -- all strips
+                    , tasks         : [Tasks.Task Strip]    -- scheduled tasks
+                    , animation     : Animation
                     , reached       : [Int]         -- the numbers we reached
                     }
 
@@ -85,22 +91,34 @@ type Reached = [Int]
 
 initialGameState : State
 initialGameState =  Play { strips        = [strip_1, strip0, strip1]
-                         , tasks     = []
+                         , tasks        = []
+                         , animation    = Raised
                          , reached      = []
                          }
 
 initialState : State
 initialState = Start
 
-velocity : Maybe Animation -> Float
+velocity : Animation -> Float
 velocity animation = case animation of
-    Nothing         -> 0
-    Just Dropping   -> 30
-    Just Diffing    -> 30
-    Just UnDiffing  -> -30
-    Just Raising    -> -50
+    Dropping   -> 30
+    Diffing    -> 30
+    UnDiffing  -> -30
+    Raising    -> -50
+    otherwise  -> 0
 
+finished : Animation -> Bool
+finished animation = case animation of
+    Dropping   -> False
+    Diffing    -> False
+    UnDiffing  -> False
+    Raising    -> False
+    otherwise  -> True
 
+isMoving : Animation -> Bool
+isMoving animation = not (finished animation)
+
+{--
 type Task = {runtime : Time, animation: Maybe Animation, target: String}
 schedule : Task -> [Task] -> [Task] 
 schedule = (::)
@@ -123,39 +141,68 @@ nextAnimation t gs =
                         ,       tasks <- defer ++ notReady
                         }
 
+scheduleManyAt : Maybe Animation -> Float -> [Strip] -> [Task] -> [Task]
+scheduleManyAt anim t strips tasks =
+    let scheduleStrip s tsks = schedule {runtime=t, animation=anim, target=s.color} tsks
+        logS = log "scheduleManyAt" ()
+    in foldr scheduleStrip tasks strips
+-}
 
 -- This returns the number of hexes dropped on a side before a given strip.
-alreadyDroppedHexes : Side -> Strip -> GameState -> Int
-alreadyDroppedHexes side strip gs =
+droppedOnSideBefore : Side -> Strip -> GameState -> Int
+droppedOnSideBefore side strip gs =
     let droppedBefore s1 s2  = 
-            case (s1.dropped, s2.dropped) of
+            case (s1.dropOrder, s2.dropOrder) of
                 (Just m, Just n) -> m < n
                 otherwise -> False
         stack  = filter (\s -> s.side == side && s `droppedBefore` strip) gs.strips
     in foldr (\s acc -> s.n + acc) 0 (stack)
 
 dropCount : GameState -> Int
-dropCount gs = dropped gs.strips |> length
+dropCount gs = foldr (\strip acc -> if strip.dropOrder /= Nothing  then acc+1 else acc) 0
+                    gs.strips 
 
 sideDropCount : Side -> GameState -> Int
 sideDropCount side gs = 
-    let sideStrips = filter (\strip -> strip.dropped /= Nothing && strip.side == side) gs.strips
+    let sideStrips = filter (\strip -> strip.animation == Dropped && strip.side == side) gs.strips
     in foldr (\s acc -> s.n + acc) 0 sideStrips
 
-isDropped : Strip -> Bool
-isDropped s = s.dropped /= Nothing
+anyOnSide : GameState -> Side -> Bool 
+anyOnSide gs side = any (\s -> s.side == side && s.animation==Dropped) gs.strips
 
-dropped : [Strip] -> [Strip]
-dropped strips = filter isDropped strips
+diffable : GameState -> Bool
+diffable gs = (anyOnSide gs L) && (anyOnSide gs R)
 
-allDropped : GameState -> Bool
-allDropped gs = all isDropped gs.strips
-
-anyDropped : GameState -> Bool
-anyDropped gs = any isDropped gs.strips
+unDiffable : GameState -> Bool
+unDiffable gs = any (\s -> s.animation == Diffed) gs.strips
 
 diffCount : GameState -> Int
 diffCount gs = min (sideDropCount L gs) (sideDropCount R gs)
+
+waitingForAgain : GameState -> Bool
+waitingForAgain gs = isEmpty gs.tasks && all (\s -> s.animation == Dropped) gs.strips 
+
+waiting : GameState -> Bool
+waiting gs = isEmpty gs.tasks && all (\s -> finished s.animation) gs.strips 
+
+isDropped : Strip -> Bool
+isDropped s = s.animation == Dropped
+
+isDiffed : Strip -> Bool
+isDiffed s = s.animation == Diffed
+
+isRaised : Strip -> Bool
+isRaised s = s.animation == Raised
+
+--dropped : [Strip] -> [Strip]
+--dropped strips = filter isDropped strips
+
+--allDropped : GameState -> Bool
+--allDropped gs = all isDropped gs.strips
+
+--anyDropped : GameState -> Bool
+--anyDropped gs = any isDropped gs.strips
+
 
 --
 -- UPDATE
@@ -168,10 +215,10 @@ type Event = (Time, Action)
 drop : GameState -> Strip -> Side -> Strip -> Strip
 drop gs clickedStrip side s  =
     if clickedStrip == s
-        then    {s| v   <-  velocity <| Just Dropping
-                ,   animation <- Just Dropping
+        then    {s| v   <-  velocity Dropping
+                ,   animation <- Dropping
                 ,   side <- side
-                ,   dropped <- Just <| dropCount gs 
+                ,   dropOrder <- Just <| dropCount gs 
                 }
         else    s   -- strip unchanged
 
@@ -189,86 +236,128 @@ moveStrip w h delta gs s =
                     | s.side == R -> 1
                     | otherwise -> 0
         separation = hexW h * sign // 2
-        stack = alreadyDroppedHexes s.side s gs
+        stack = droppedOnSideBefore s.side s gs
         dy = (velocity s.animation) * speed * delta |> round
         -- debugAnim = watch "animation" s.animation
         -- debug_gs = unwatch "GameState red" <| head gs.strips
-        a = log "animation" (show s.animation)
+        -- a = log "animation" (show s.animation)
+        logD = log "dropped" <| show (s.side, stack)
 
     in case s.animation of
-        Just Dropping
+        Dropping
             -> let boxSize = h - stripHeight h stack
                in if hitBottom h (snd s.loc) s.n boxSize
-                    then    {s| animation <- Nothing
+                    then    {s| animation <- Dropped
                             ,   loc <- (separation,  (boxSize - stripHeight h s.n))
                             }
                     else    {s| loc <- (separation, snd s.loc + dy) }
 
-        Just Diffing
+        Diffing
             -> let diffDrop = diffCount gs
                    boxSize = h - stripHeight h (stack - diffDrop)
                in if hitBottom h (snd s.loc) s.n boxSize
-                    then    {s| animation <- Nothing
+                    then    {s| animation <- Diffed
                             ,   loc <- (separation,  (boxSize - stripHeight h s.n))
                             }
                     else    {s| loc <- (separation, snd s.loc + dy) }
 
-        Just UnDiffing
+        UnDiffing
             -> let boxSize = h - stripHeight h stack
                in if not <| hitBottom h (snd s.loc) s.n boxSize
-                    then    {s| animation <- Nothing
+                    then    {s| animation <- Dropped
                             ,   loc <- (separation,  (boxSize - stripHeight h s.n))
                             }
                     else    {s| loc <- (separation, snd s.loc + dy) }
 
-        Just Raising
+        Raising
             -> if aboveTop h s
-                then    {s| animation <- Nothing
+                then    {s| animation <- Raised
                         ,   loc <- (separation, -(stripHeight h s.n))
-                        ,   side <- None
-                        ,   dropped <- Nothing
+                        ,   side <- L           -- don't care
+                        ,   dropOrder <- Nothing
                         }
                 else    {s| loc <- (separation, snd s.loc + dy) }
 
         otherwise
             ->  s
 
-animate : Int -> Int -> Float -> GameState -> GameState
-animate w h delta gs =
-    {gs | strips <- map (moveStrip w (h - widthOf againButton) delta gs) gs.strips}
+animateStrip : Int -> Int -> Float -> GameState -> Float -> Strip -> Strip
+animateStrip w h delta gs t strip =
+    moveStrip w (h - (widthOf <| againButton gs)) delta gs strip
+
+--animate : Int -> Int -> Float -> GameState -> GameState
+--animate w h delta gs =
+--    {gs | strips <- map (moveStrip w (h - (widthOf <| againButton gs)) delta gs) gs.strips}
+ 
+start : Animation -> (Time -> Strip -> Strip)
+start anim = (\_ strip -> {strip | animation <- anim, v <- velocity anim})
 
 raiseStrip : Strip -> Strip
-raiseStrip s = {s | animation <- Just Raising}
- 
-scheduleManyAt : Maybe Animation -> Float -> [Strip] -> [Task] -> [Task]
-scheduleManyAt anim t strips tasks =
-    let scheduleStrip s tsks = schedule {runtime=t, animation=anim, target=s.color} tsks
-        logS = log "scheduleManyAt" ()
-    in foldr scheduleStrip tasks strips
+raiseStrip s = {s | animation <- Raising}
 
 update : Event -> State -> State
-update event state = watch "state" <| case state of
+update event state = case state of
     Start   ->  case event of
                     (_, GotoPlay)   -> initialGameState
                     otherwise       ->  state
 
     Play gs ->  case event of
         (t, Drop strip side)
+            ->  if strip.animation == Raised && waiting gs 
+                    then Play {gs | strips <- map (drop gs strip side) gs.strips}
+                    else state
+
+{--                        
             ->  Play {gs | strips <- map (drop gs strip side) gs.strips
                      ,     tasks  <- if (dropCount gs > 0)
+
                                         then (scheduleManyAt (Just Diffing) (t+1*second)
                                             (strip :: dropped gs.strips) gs.tasks) ++
                                             (scheduleManyAt (Just UnDiffing) (t+2*second)
                                             (strip :: dropped gs.strips) gs.tasks)
                                         else gs.tasks
                      }
+--}
 
         (_, Again)
-            ->  Play {gs | strips <- map raiseStrip gs.strips}
+            ->  if waitingForAgain gs
+                    then Play {gs | strips <- map raiseStrip gs.strips}
+                    else state
 
-        (t, Animate w h delta)
+
+        (t, Animate w h delta) ->
+
+                let -- diffTask = Tasks.make (t+1*second) (start Diffing) isDropped
+                    -- undiffTask = Tasks.make (t+2*second) (start UnDiffing) isDiffed
+
+                    tasks = if isEmpty gs.tasks && diffable gs
+                        then gs.tasks |> Tasks.schedule (Tasks.make
+                                        (t+1*second)
+                                        (start Diffing)
+                                        isDropped
+                                        ("start Diffing @" ++ (show <| t+1*second)))
+                        else if isEmpty gs.tasks && unDiffable gs
+                            then gs.tasks |> Tasks.schedule (Tasks.make
+                                            (t+3*second)
+                                            (start UnDiffing)
+                                            isDiffed
+                                            ("start unDiffing @" ++ (show <| t+2*second)))
+                            else gs.tasks |> Tasks.schedule (Tasks.make
+                                            t
+                                            (animateStrip w h delta gs)
+                                            (\s -> isMoving s.animation)
+                                            "move")
+
+                    wTasks = watch "tasks" tasks
+
+                    (newStrips, newTasks) = Tasks.perform t (gs.strips, tasks)      
+
+                in Play {gs | strips <- newStrips, tasks <- newTasks}
+
+{--
             ->  let newgs = nextAnimation t gs
                 in Play <| animate w h delta newgs
+--}
 
         otherwise
             -> Play gs
@@ -278,30 +367,34 @@ update event state = watch "state" <| case state of
 --
 -- DISPLAY
 --
-makeButton : Side -> Strip -> Element
-makeButton side strip = 
-    if strip.side == None
+makeButton : GameState -> Side -> Strip -> Element
+makeButton gs side strip =
+    if strip.animation == Raised && waiting gs 
         then
             let colorPartUrl = "media/" ++ strip.color
                 normal  = GE.image 40 40 <| colorPartUrl ++ ".png"
                 active  = GE.image 40 40 <| colorPartUrl ++ "Active.png"
             in GI.customButton startDrop.handle (strip, side) normal active active
         else
-            -- this strip is already dropped 
             GE.image 40 40 <| "media/inActive.png" 
 
-againButton = GI.customButton again.handle ()
+againButton : GameState -> Element
+againButton gs = 
+    if waitingForAgain gs
+        then GI.customButton again.handle ()
                 (GE.image 40 40 "media/up.png")
                 (GE.image 40 40 "media/upActive.png")
                 (GE.image 40 40 "media/upActive.png")
+        else GE.image 40 40 <| "media/inActive.png" 
 
 buttonBar : Int -> GameState -> Element
 buttonBar w gs = 
-    let dropButtons side = map (makeButton side) gs.strips
+    let dropButtons side = map (makeButton gs side) gs.strips
         leftButtons = flow right <| dropButtons L
         rightButtons = flow left <| dropButtons R
         padAgainSpacer = spacer 5 10 -- pad around againButton
-        pad = (w - ((widthOf againButton) + 2 * (widthOf leftButtons + widthOf padAgainSpacer)) ) // 2
+        againButton' = againButton gs
+        pad = (w - ((widthOf againButton') + 2 * (widthOf leftButtons + widthOf padAgainSpacer)) ) // 2
         barHeight = 40
         -- reduce background rect width to prevent horizontal scroll visibility jitter. 
         barGround = collage w barHeight [rect (tf <| w - 2) (tf barHeight) |> filled black |> move (1,0)]
@@ -309,7 +402,7 @@ buttonBar w gs =
             [ spacer pad 10
             , leftButtons
             , padAgainSpacer
-            , againButton
+            , againButton'
             , padAgainSpacer
             , rightButtons
             ]
@@ -421,7 +514,6 @@ activitySignal = (5 * second) `since` Mouse.clicks
 
 animationSignal : Signal Action
 animationSignal = (\((w,h), delta) -> Animate w h delta) <~ ((,) <~ Window.dimensions ~ (fpsWhen framesPerSec activitySignal))
-
 
 main : Signal Element
 main = render <~ Window.dimensions ~ foldp update initialState eventSignal

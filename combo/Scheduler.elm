@@ -15,36 +15,37 @@ makeTask t action selector = { time = t, action = action, selector = selector }
 schedule : Task a -> [Task a] -> [Task a] 
 schedule = (::)
 
-act : Time -> (a, [Task a]) -> (a, [Task a])
-act t (state, tasks) =
+act : Time -> ([a], [Task a]) -> ([a], [Task a])
+act t (states, tasks) =
     let (ready, notReady) = partition (\task -> t >= task.time) tasks
     in case ready of
-        []  ->  (state, tasks)
-        _   ->  let stepState task state =
-                    if task.selector state
-                        then task.action t state
-                        else state
-                in (foldr stepState state ready, notReady)
+        []  ->  (states, tasks)
+        _   ->  let stepStates task states =
+                    map (\state -> if task.selector state
+                            then task.action t state
+                            else state
+                        ) states
+                in (foldr stepStates states ready, notReady)
 
 
 {-- -- test
 
--- select any even states 
+-- select even states 
 selector : Int -> Bool
 selector a = a % 2 == 0
 
--- if selected, action subtracts the state (an Int) from current time
+-- if selected, action squares the state, negating it if the time is odd.
 action : Time -> Int -> Int
-action t n = (round t) - n
+action t n = n * n * (if (round t) % 2 == 0 then 1 else -1)
 
--- make tasks to execute at times 1000..1003
-tasks = foldr (\t acc -> schedule (makeTask t action selector) acc) [] [1000..1003]
+-- schedule tasks to execute the test action at times 1001..1004 on even states.
+tasks = foldr (\t acc -> schedule (makeTask t action selector) acc) [] [1001..1004]
 
 main : Element
-main = act 999 (2, tasks)   -- (2,...)        (no tasks ready, 4 more tasks)
-        |> act 1000         -- (998,...)      (1000 - 2, three more tasks)
-        |> act 1001         -- (3,...)        (1001 - 998, two more tasks)
-        |> act 1002         -- (3,...)        (odd: not selected, one more task)
-        |> act 1003         -- (3,[])         (odd: not selected, no more tasks)
+main = act 1000 ([1,2,3,4], tasks)  -- [1,2,3,4] + 4 tasks
+        |> act 1001                 -- [1,-4,3,-16] + 3 tasks
+        |> act 1002                 -- [1,16,3,256] + 2 tasks
+        |> act 1003                 -- [1,-256,3,-65536] + 1 tasks
+        |> act 1004                 -- [1,-256,3,-65536] + 0 tasks
         |> asText
 --}

@@ -3,6 +3,7 @@ module Scheduler where
 {--
   A reusable scheduler which acts on a list of 'a's.
 --}
+import Debug (log)
 
 type Task a =   { time          : Time              -- time to run
                 , action        : Time -> a -> a    -- the action to run on each 'a'
@@ -26,6 +27,13 @@ schedule = (::)
     Each task contains a selector which may be applied to the state list to determine
     which states to update. i.e. it allows tasks to target only certain states.
 -}
+performOne : Time -> (a, [Task a]) -> (a, [Task a])
+performOne t (state, tasks) =
+    let (ready, notReady) = partition (\task -> t >= task.time) tasks
+    in case ready of
+        []  ->  (state, tasks)
+        _   ->  (foldr (\t task -> task.action t state) state ready, notReady)
+
 perform : Time -> ([a], [Task a]) -> ([a], [Task a])
 perform t (states, tasks) =
     let (ready, notReady) = partition (\task -> t >= task.time) tasks
@@ -33,7 +41,10 @@ perform t (states, tasks) =
         []  ->  (states, tasks)
         _   ->  let stepStates task states =
                     map (\state -> if task.selector state
-                            then task.action t state
+                            then 
+                                let state' = task.action t state
+                                    logger = log task.name (t, state, state')  
+                                in state'
                             else state
                         ) states
                 in (foldr stepStates states ready, notReady)

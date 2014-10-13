@@ -67,7 +67,7 @@ type Strip  =   { color     : Color             -- also use to identify a strip
 data Animation  = Dropping | Dropped |
                   Raising | Raised |
                   Diffing | Diffed |
-                  UnDiffing
+                  UnDiffing | UnDiffed
 
 data Side = L | R
 
@@ -118,35 +118,6 @@ finished animation = case animation of
 isMoving : Animation -> Bool
 isMoving animation = not (finished animation)
 
-{--
-type Task = {runtime : Time, animation: Maybe Animation, target: String}
-schedule : Task -> [Task] -> [Task] 
-schedule = (::)
--- schedule task tasks = task :: tasks
-
-nextAnimation : Time -> GameState -> GameState
-nextAnimation t gs =
-    if isEmpty gs.tasks
-        then gs
-        else 
-            let (ready, notReady) = partition (\task -> t > task.runtime) gs.tasks
-                perform task s = {s | animation <- if task.target == s.color
-                                                        then task.animation
-                                                        else s.animation }
-                -- logT = log "nextAnimation" t
-            in case ready of
-                []  ->  gs
-                (firstReady :: defer)
-                    ->  { gs |  strips <- map (perform firstReady) gs.strips
-                        ,       tasks <- defer ++ notReady
-                        }
-
-scheduleManyAt : Maybe Animation -> Float -> [Strip] -> [Task] -> [Task]
-scheduleManyAt anim t strips tasks =
-    let scheduleStrip s tsks = schedule {runtime=t, animation=anim, target=s.color} tsks
-        logS = log "scheduleManyAt" ()
-    in foldr scheduleStrip tasks strips
--}
 
 -- This returns the number of hexes dropped on a side before a given strip.
 droppedOnSideBefore : Side -> Strip -> GameState -> Int
@@ -173,14 +144,15 @@ anyOnSide gs side = any (\s -> s.side == side && s.animation==Dropped) gs.strips
 diffable : GameState -> Bool
 diffable gs = (anyOnSide gs L) && (anyOnSide gs R)
 
-unDiffable : GameState -> Bool
-unDiffable gs = any (\s -> s.animation == Diffed) gs.strips
+--unDiffable : GameState -> Bool
+--unDiffable gs = any (\s -> s.animation == Diffed) gs.strips
 
 diffCount : GameState -> Int
 diffCount gs = min (sideDropCount L gs) (sideDropCount R gs)
 
 waitingForAgain : GameState -> Bool
-waitingForAgain gs = isEmpty gs.tasks && all (\s -> s.animation == Dropped) gs.strips 
+waitingForAgain gs = 
+    isEmpty gs.tasks && all (\s -> isDropped s || isUnDiffed s) gs.strips 
 
 waiting : GameState -> Bool
 waiting gs = isEmpty gs.tasks && all (\s -> finished s.animation) gs.strips 
@@ -190,6 +162,9 @@ isDropped s = s.animation == Dropped
 
 isDiffed : Strip -> Bool
 isDiffed s = s.animation == Diffed
+
+isUnDiffed : Strip -> Bool
+isUnDiffed s = s.animation == UnDiffed
 
 isRaised : Strip -> Bool
 isRaised s = s.animation == Raised
@@ -241,7 +216,7 @@ moveStrip w h delta gs s =
         -- debugAnim = watch "animation" s.animation
         -- debug_gs = unwatch "GameState red" <| head gs.strips
         -- a = log "animation" (show s.animation)
-        logD = log "dropped" <| show (s.side, stack)
+        -- logD = log "dropped" <| show (s.side, stack)
 
     in case s.animation of
         Dropping
@@ -264,7 +239,7 @@ moveStrip w h delta gs s =
         UnDiffing
             -> let boxSize = h - stripHeight h stack
                in if not <| hitBottom h (snd s.loc) s.n boxSize
-                    then    {s| animation <- Dropped
+                    then    {s| animation <- UnDiffed
                             ,   loc <- (separation,  (boxSize - stripHeight h s.n))
                             }
                     else    {s| loc <- (separation, snd s.loc + dy) }
@@ -327,32 +302,29 @@ update event state = case state of
 
         (t, Animate w h delta) ->
 
-                let -- diffTask = Tasks.make (t+1*second) (start Diffing) isDropped
-                    -- undiffTask = Tasks.make (t+2*second) (start UnDiffing) isDiffed
+                let tasks = if isEmpty gs.tasks && diffable gs
+                    then gs.tasks 
+                            |> Tasks.schedule (Tasks.make
+                                (t+3*second)
+                                (start Diffing)
+                                isDropped
+                                ("-> Diffing @" ++ (show <| t+3*second)))
+                            |> Tasks.schedule (Tasks.make
+                                    (t+6*second)
+                                    (start UnDiffing)
+                                    isDiffed
+                                    ("-> unDiffing @" ++ (show <| t+6*second)))
+                    else gs.tasks
 
-                    tasks = if isEmpty gs.tasks && diffable gs
-                        then gs.tasks |> Tasks.schedule (Tasks.make
-                                        (t+1*second)
-                                        (start Diffing)
-                                        isDropped
-                                        ("start Diffing @" ++ (show <| t+1*second)))
-                        else if isEmpty gs.tasks && unDiffable gs
-                            then gs.tasks |> Tasks.schedule (Tasks.make
-                                            (t+3*second)
-                                            (start UnDiffing)
-                                            isDiffed
-                                            ("start unDiffing @" ++ (show <| t+2*second)))
-                            else gs.tasks |> Tasks.schedule (Tasks.make
-                                            t
-                                            (animateStrip w h delta gs)
-                                            (\s -> isMoving s.animation)
-                                            "move")
+                    tasks' = tasks |> Tasks.schedule (Tasks.make
+                                        t
+                                        (animateStrip w h delta gs)
+                                        (\s -> isMoving s.animation)
+                                        "move")
 
-                    wTasks = watch "tasks" tasks
+                    (strips'', tasks'') = Tasks.perform t (gs.strips, tasks')      
 
-                    (newStrips, newTasks) = Tasks.perform t (gs.strips, tasks)      
-
-                in Play {gs | strips <- newStrips, tasks <- newTasks}
+                in Play {gs | strips <- strips'', tasks <- tasks''}
 
 {--
             ->  let newgs = nextAnimation t gs
@@ -510,7 +482,7 @@ eventSignal = merges    [ startClick
 
 -- use this to quash fps so we don't hog the cpu
 activitySignal : Signal Bool
-activitySignal = (5 * second) `since` Mouse.clicks
+activitySignal = (12 * second) `since` Mouse.clicks
 
 animationSignal : Signal Action
 animationSignal = (\((w,h), delta) -> Animate w h delta) <~ ((,) <~ Window.dimensions ~ (fpsWhen framesPerSec activitySignal))

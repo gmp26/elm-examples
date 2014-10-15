@@ -5,12 +5,19 @@ import Model as M
 import Model (initialState, box, testDraw)
 import Text as T
 import Vector as V
+import Graphics.Input
+
+hover = Graphics.Input.input Nothing
 
 --
 -- VIEW
 --
 gridSize : Int
 gridSize = 30
+
+-- convert a mouse delta to a grid delta -- the y axis inverts
+gridDelta : V.Vector Float -> V.Vector Float
+gridDelta (dx, dy) = V.scale (1/tf gridSize) (dx, -dy)
 
 background : Int -> Int -> Element
 background w h = collage w h [rect (tf w) (tf h) |> filled (grey)]
@@ -38,7 +45,6 @@ overlay strip _ =   let isz = gridSize - 4
                         |> opacity 0.2
                         |> container osz (osz+2) middle
 
-
 stripElement : M.Strip -> Element
 stripElement strip =    [ spacer gridSize (gridSize*strip.n)
                             |> color black
@@ -49,12 +55,15 @@ stripElement strip =    [ spacer gridSize (gridSize*strip.n)
                             flow down (map (overlay strip) [1..strip.n])
                         ] |> layers
 
-stripForm : M.Strip -> Form
-stripForm strip = stripElement strip
+draggable : M.Strip -> Element
+draggable strip = 
+  let which s = if s then Just s else Nothing
+  in Graphics.Input.hoverable hover.handle which (stripElement strip)
+
+stripForm : Vector Float -> M.Strip -> Form
+stripForm strip = draggable strip
                     |> toForm
-                    |> move ( strip.loc
-                                |> V.scale (tf gridSize)
-                            )
+                    |> move (strip.loc |> V.scale (tf gridSize)
 
 renderGame : (Int, Int) -> M.GameState -> Element
 renderGame (w,h) gs = gs.strips
@@ -76,6 +85,8 @@ render (w,h) state = case state of
                 ]
 
 -- test
+
+
 
 main : Element
 main = render (500,500) <| M.Play testDraw

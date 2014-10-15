@@ -3,14 +3,16 @@ module Model where
 import Utils (tf)
 import Vector as V
 import Vector (plus, minus)
+import DragAndDrop as DD
 
 -- n and loc both use integer grid Locations using unit grid squares.
-type Strip      =   { n     : Int 
-                    , loc   : V.Vector Float
+type Strip      =   { n         : Int 
+                    , loc       : V.Vector Float
+                    , active    : Bool
                     }
 
 makeStrip : Int -> V.Vector Float -> Strip
-makeStrip n loc = { n = n, loc = loc} 
+makeStrip n loc = { n = n, loc = loc, active = False} 
 
 type GameState  =   { strips : [Strip]
                     }
@@ -20,7 +22,7 @@ initialGame =   { strips = []
                 }
 data State = Start | Play GameState
 
-data Event = GotoPlay
+data Event = GotoPlay | Maybe (Strip, DD.Action)
 
 initialState : State
 initialState = Start
@@ -47,7 +49,7 @@ box : Strip -> Bounds
 box strip = let u = V.x strip.loc
                 v = V.y strip.loc + (tf strip.n) / 2
             in  { topLeft = (-u, -v)
-                , bottomRight = (u + 1,v)
+                , bottomRight = (u+1, v)
                 }
 
 data Alignment = TL | TR | BL | BR
@@ -59,8 +61,8 @@ align corner at strip =
         atF = V.toFloat at
     in case corner of
         TL  -> {strip | loc <- strip.loc `plus` (atF `minus` bb.topLeft) }
-        TR  -> {strip | loc <- strip.loc `plus` (atF `minus` bb.topLeft) }
-        BL  -> {strip | loc <- strip.loc `plus` (atF `minus` bb.topLeft) }
+        TR  -> {strip | loc <- strip.loc `plus` (atF `minus` (V.x bb.bottomRight, V.y bb.topLeft)) }
+        BL  -> {strip | loc <- strip.loc `plus` (atF `minus` (V.x bb.topLeft, V.y bb.bottomRight)) }
         BR  -> {strip | loc <- strip.loc `plus` (atF `minus` bb.bottomRight) }
 
 

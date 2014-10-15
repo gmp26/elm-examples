@@ -25,13 +25,12 @@ lineStyle = solid black
 
 vertex : Float -> Form
 vertex radius = 
-    [ circle radius
-        |> filled red 
-    , circle radius
-        |> outlined (solid black)
-    , toForm (inputField 40 40)    
-    ]
-    |> group
+    let d = ceiling <| radius*2 
+    in collage d d  [ circle radius |> filled red 
+                    , circle radius |> outlined (solid black)
+                    , inputField 40 40 |> toForm    
+                    ] 
+        |> toForm
 
 inputField w h = width w <| height h <| (Field.field fieldStyle content.handle identity "Type here!" Field.noContent)
 

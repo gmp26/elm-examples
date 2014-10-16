@@ -5,9 +5,10 @@ import Model as M
 import Model (initialState, box, testDraw)
 import Text as T
 import Vector as V
-import Graphics.Input
+import Graphics.Input as GI
 
-hover = Graphics.Input.input Nothing
+hover : GI.Input M.Event
+hover = GI.input <| M.Drag Nothing
 
 --
 -- VIEW
@@ -16,8 +17,8 @@ gridSize : Int
 gridSize = 30
 
 -- convert a mouse delta to a grid delta -- the y axis inverts
-gridDelta : V.Vector Float -> V.Vector Float
-gridDelta (dx, dy) = V.scale (1/tf gridSize) (dx, -dy)
+gridDelta : V.Vector Int -> V.Vector Float
+gridDelta (dx, dy) = V.scale (1/tf gridSize) (V.toFloat (dx, -dy))
 
 background : Int -> Int -> Element
 background w h = collage w h [rect (tf w) (tf h) |> filled (grey)]
@@ -58,12 +59,12 @@ stripElement strip =    [ spacer gridSize (gridSize*strip.n)
 draggable : M.Strip -> Element
 draggable strip = 
   let which s = if s then Just s else Nothing
-  in Graphics.Input.hoverable hover.handle which (stripElement strip)
+  in GI.hoverable hover.handle which (stripElement strip)
 
-stripForm : Vector Float -> M.Strip -> Form
+stripForm : M.Strip -> Form
 stripForm strip = draggable strip
                     |> toForm
-                    |> move (strip.loc |> V.scale (tf gridSize)
+                    |> move (strip.loc |> V.scale (tf gridSize))
 
 renderGame : (Int, Int) -> M.GameState -> Element
 renderGame (w,h) gs = gs.strips

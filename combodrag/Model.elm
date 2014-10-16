@@ -8,11 +8,11 @@ import DragAndDrop as DD
 -- n and loc both use integer grid Locations using unit grid squares.
 type Strip      =   { n         : Int 
                     , loc       : V.Vector Float
-                    , active    : Bool
+                    , dragging    : Bool
                     }
 
 makeStrip : Int -> V.Vector Float -> Strip
-makeStrip n loc = { n = n, loc = loc, active = False} 
+makeStrip n loc = { n = n, loc = loc, dragging = False} 
 
 type GameState  =   { strips : [Strip]
                     }
@@ -22,7 +22,7 @@ initialGame =   { strips = []
                 }
 data State = Start | Play GameState
 
-data Event = GotoPlay | Maybe (Strip, DD.Action)
+data Event = GotoPlay | Drag (Maybe (Strip, DD.Action))
 
 initialState : State
 initialState = Start
@@ -48,8 +48,8 @@ type Bounds     = { topLeft     : V.Vector Float
 box : Strip -> Bounds
 box strip = let u = V.x strip.loc
                 v = V.y strip.loc + (tf strip.n) / 2
-            in  { topLeft = (-u, -v)
-                , bottomRight = (u+1, v)
+            in  { topLeft = (-u, v)
+                , bottomRight = (u+1, -v)
                 }
 
 data Alignment = TL | TR | BL | BR
@@ -69,7 +69,7 @@ align corner at strip =
 -- tests
 
 testStrip : Int -> Strip
-testStrip n = align BL (n-5,-5) {n = n, loc = (0, 0)}
+testStrip n = align BL (n-5,-5) {n = n, loc = (0, 0), dragging = False}
 
 testDraw : GameState
 testDraw    =   { strips = [1..10] |> map testStrip

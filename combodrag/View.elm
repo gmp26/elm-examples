@@ -1,24 +1,22 @@
 module View where
 
-import Utils (tf)
+import Utils (tf, gridSize, gsz)
 import Model as M
-import Model (initialState, box, testDraw)
+import Model (initialState, box)
 import Text as T
 import Vector as V
 import Graphics.Input as GI
 
-hover : GI.Input (Maybe Bool)
+hover : GI.Input (Maybe M.Strip)
 hover = GI.input Nothing
 
 --
 -- VIEW
 --
-gridSize : Int
-gridSize = 30
 
 -- convert a mouse delta to a grid delta -- the y axis inverts
 gridDelta : V.Vector Int -> V.Vector Float
-gridDelta (dx, dy) = V.scale (1/tf gridSize) (V.toFloat (dx, -dy))
+gridDelta (dx, dy) = (V.toFloat (dx, -dy))
 
 background : Int -> Int -> Element
 background w h = collage w h [rect (tf w) (tf h) |> filled (grey)]
@@ -32,12 +30,6 @@ bannerStyle =   { typeface = ["Helvetica Neue", "Verdana", "Arial", "sans_serif"
                 , line   = Nothing
                 }
 
---stripElement : M.Strip -> Element
---stripElement strip =    [rect 1 (tf strip.n)
---                            |> filled (M.color strip)
---                            |> scale (tf gridSize)
---                        ] |> collage gridSize (strip.n * gridSize)
-
 overlay : M.Strip -> Int -> Element
 overlay strip _ =   let isz = gridSize - 4
                         osz = gridSize - 2
@@ -46,6 +38,15 @@ overlay strip _ =   let isz = gridSize - 4
                         |> opacity 0.2
                         |> container osz (osz+2) middle
 
+{--
+stripElement : M.Strip -> Element
+stripElement strip =    [rect 1 (tf strip.n)
+                            |> filled (M.color strip)
+                            |> scale (tf gridSize)
+                        ]  
+                        |> collage gridSize (strip.n * gridSize)
+--}                        
+{--
 stripElement : M.Strip -> Element
 stripElement strip =    [ spacer gridSize (gridSize*strip.n)
                             |> color black
@@ -55,19 +56,46 @@ stripElement strip =    [ spacer gridSize (gridSize*strip.n)
                         , container gridSize (gridSize*strip.n) middle <|
                             flow down (map (overlay strip) [1..strip.n])
                         ] |> layers
+--}
+{--}
+label : M.Strip -> Element
+label strip = strip.n
+                |> show
+                |> T.toText
+                |> T.color (if strip.n<6 then black else white)
+                |> T.height (gsz*0.75)
+                |> T.bold
+                |> T.centered
+                |> width gridSize
+
+stripElement : M.Strip -> Element
+stripElement strip =    [ spacer (gridSize-2) (gridSize*strip.n - 2)
+                            |> color (M.color strip)
+                        , flow down (map (overlay strip) [1..strip.n])
+                        , label strip
+                        ]   |> layers
+                            |> container gridSize (gridSize*strip.n) middle
+                            |> color black
+--}
 
 draggable : M.Strip -> Element
 draggable strip = 
-  let which s = if s then Just s else Nothing
+  let which s = if s then Just strip else Nothing
   in GI.hoverable hover.handle which (stripElement strip)
 
 stripForm : M.Strip -> Form
 stripForm strip = draggable strip
                     |> toForm
-                    |> move (strip.loc |> V.scale (tf gridSize))
+                    |> move (strip.loc)
 
 renderGame : (Int, Int) -> M.GameState -> Element
 renderGame (w,h) gs = gs.strips
+                        --|> sortWith (\s1 s2 -> 
+                        --    if s1.dragging 
+                        --        then GT
+                        --        else if s2.dragging
+                        --            then LT
+                        --            else EQ)  
                         |> map stripForm
                         |> collage w h 
 
@@ -85,9 +113,7 @@ render (w,h) state = case state of
                 , renderGame (w,h) gs
                 ]
 
--- test
-
-
-
+-- test draw a stack of strips
 main : Element
-main = render (500,500) <| M.Play testDraw
+main =  let testDraw  = { strips = [1..10] |> map M.testStrip}
+        in render (500,500) <| M.Play testDraw

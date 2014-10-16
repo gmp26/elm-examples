@@ -1,8 +1,8 @@
-module View where
+module View (render, gridDelta, hover) where
 
 import Utils (tf, gridSize, gsz)
 import Model as M
-import Model (initialState, box)
+import Model (initialState)
 import Text as T
 import Vector as V
 import Graphics.Input as GI
@@ -31,33 +31,15 @@ bannerStyle =   { typeface = ["Helvetica Neue", "Verdana", "Arial", "sans_serif"
                 }
 
 overlay : M.Strip -> Int -> Element
-overlay strip _ =   let isz = gridSize - 4
+overlay strip _ =   let isz = gridSize - 3
                         osz = gridSize - 2
                     in spacer isz isz
                         |> color white
-                        |> opacity 0.2
-                        |> container osz (osz+2) middle
+                        |> opacity 0.3
+                        |> width (osz-3)
+                        |> height (osz-3)
+                        |> container (osz) (osz+2) middle
 
-{--
-stripElement : M.Strip -> Element
-stripElement strip =    [rect 1 (tf strip.n)
-                            |> filled (M.color strip)
-                            |> scale (tf gridSize)
-                        ]  
-                        |> collage gridSize (strip.n * gridSize)
---}                        
-{--
-stripElement : M.Strip -> Element
-stripElement strip =    [ spacer gridSize (gridSize*strip.n)
-                            |> color black
-                        , container gridSize (gridSize*strip.n) middle <|
-                            (spacer (gridSize-2) (gridSize*strip.n - 2)
-                                                |> color (M.color strip))
-                        , container gridSize (gridSize*strip.n) middle <|
-                            flow down (map (overlay strip) [1..strip.n])
-                        ] |> layers
---}
-{--}
 label : M.Strip -> Element
 label strip = strip.n
                 |> show
@@ -74,9 +56,9 @@ stripElement strip =    [ spacer (gridSize-2) (gridSize*strip.n - 2)
                         , flow down (map (overlay strip) [1..strip.n])
                         , label strip
                         ]   |> layers
-                            |> container gridSize (gridSize*strip.n) middle
+                            |> container (gridSize+1) (gridSize*strip.n+1) bottomRight
                             |> color black
---}
+
 
 draggable : M.Strip -> Element
 draggable strip = 
@@ -114,6 +96,9 @@ render (w,h) state = case state of
                 ]
 
 -- test draw a stack of strips
+testStrip : Int -> M.Strip
+testStrip n = M.align M.BR (n-5,-5) {n = n, loc = (0, 0), dragging = False}
+
 main : Element
-main =  let testDraw  = { strips = [1..10] |> map M.testStrip}
+main =  let testDraw  = { strips = [1..10] |> map testStrip}
         in render (500,500) <| M.Play testDraw

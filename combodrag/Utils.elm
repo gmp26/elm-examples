@@ -1,4 +1,4 @@
-module Utils where
+module Utils (tf, gridSize, gsz) where
 
 --
 -- HELPERS

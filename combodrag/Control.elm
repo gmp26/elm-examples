@@ -1,4 +1,4 @@
-module Control where
+module Control (update) where
 
 import Model as M
 import Vector as V

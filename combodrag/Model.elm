@@ -1,4 +1,7 @@
-module Model where
+module Model    ( Strip, initialState, initialGame
+                , color, GameState, State (..), testStrip
+                , setDragging, toGrid, Event (..), align, Alignment (..)
+                ) where
 
 import Utils (tf, gridSize, gsz)
 import Vector as V
@@ -20,9 +23,9 @@ type GameState  =   { strips : [Strip]
                     }
 
 initialGame : GameState          
-initialGame =   { strips =  [ align TL (-1,0) {n = 1, loc = (0,0), dragging = False}
-                            , align TL (0,0) {n = 3, loc = (0,0), dragging = False}
-                            , align TL (1,0) {n = 9, loc = (0,0), dragging = False}
+initialGame =   { strips =  [ align BL (-5,-5) {n = 1, loc = (0,0), dragging = False}
+                            , align BL (-4,-5) {n = 3, loc = (0,0), dragging = False}
+                            , align BL (-3,-5) {n = 9, loc = (0,0), dragging = False}
                             ]
                 }
 data State = Start | Play GameState

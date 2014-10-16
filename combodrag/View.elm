@@ -7,8 +7,8 @@ import Text as T
 import Vector as V
 import Graphics.Input as GI
 
-hover : GI.Input M.Event
-hover = GI.input <| M.Drag Nothing
+hover : GI.Input (Maybe Bool)
+hover = GI.input Nothing
 
 --
 -- VIEW

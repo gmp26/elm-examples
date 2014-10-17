@@ -86,12 +86,6 @@ stripForm strip = draggable strip
 
 renderGame : (Int, Int) -> M.GameState -> Element
 renderGame (w,h) gs = gs.strips
-                        --|> sortWith (\s1 s2 -> 
-                        --    if s1.dragging 
-                        --        then GT
-                        --        else if s2.dragging
-                        --            then LT
-                        --            else EQ)  
                         |> map stripForm
                         |> collage w h 
 
@@ -109,10 +103,13 @@ render (w,h) state = case state of
                 , renderGame (w,h) gs
                 ]
 
+
+
 -- test draw a stack of strips
-testStrip : Int -> M.Strip
-testStrip n = M.align M.BR (n-5,-5) {n = n, loc = (0, 0), dragging = False}
+--testStrip : Int -> M.Strip
+--testStrip n = M.align M.BR (n-5,-5) {n = n, loc = (0, 0), dragging = False}
 
 main : Element
-main =  let testDraw  = { strips = [1..10] |> map testStrip}
-        in render (500,500) <| M.Play testDraw
+main = asText "Hi"
+    --let testDraw  = { strips = [1..10] |> map M.testStrip}
+    --    in render (500,500) <| M.Play testDraw

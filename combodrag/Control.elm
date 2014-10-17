@@ -4,7 +4,7 @@ import Model as M
 import Vector as V
 import View (gridDelta)
 import DragAndDrop as DD
-import Debug (log)
+import Debug (watch)
 
 --
 -- UPDATE
@@ -26,17 +26,20 @@ startDrag strip gs =
 
 drag : M.Strip -> V.Vector Int -> M.GameState -> M.GameState
 drag strip delta gs =
-    modify strip (\s -> {s | loc <- s.loc `V.plus` (gridDelta delta)}) identity (toTop strip gs)
+    let over s = {s | highlight <- s `M.overlaps` strip}
+        translate s = {s | loc <- s.loc `V.plus` (gridDelta delta)}
+    in modify strip translate over (toTop strip gs)
 
 stopDrag : M.Strip -> M.GameState -> M.GameState
 stopDrag strip gs =
-    modify strip (M.toGrid << M.setDragging False) identity (toTop strip gs)
+    let over s = {s | highlight <- s `M.overlaps` strip}
+    in modify strip (M.toGrid << M.setDragging False) over (toTop strip gs)
 
 update : M.Event -> M.State -> M.State
 update event state = case state of
     M.Start     -> M.Play M.initialGame
 
-    M.Play gs   -> case event of
+    M.Play gs   -> watch "state" <| case event of
         M.Drag (Just (strip, DD.Lift))           -> M.Play <| startDrag strip gs
         M.Drag (Just (strip, DD.MoveBy delta))   -> M.Play <| drag strip delta gs
         M.Drag (Just (strip, DD.Release))        -> M.Play <| stopDrag strip gs

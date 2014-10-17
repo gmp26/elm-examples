@@ -6,7 +6,7 @@ module Utils (tf, gridSize, gsz) where
 tf = toFloat
 
 gridSize : Int
-gridSize = 23
+gridSize = 40
 
 gsz : Float
 gsz = tf gridSize

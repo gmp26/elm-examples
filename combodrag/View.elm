@@ -18,8 +18,22 @@ hover = GI.input Nothing
 gridDelta : V.Vector Int -> V.Vector Float
 gridDelta (dx, dy) = (V.toFloat (dx, -dy))
 
+rulerStyle = { defaultLine | color <- white, width <- 5 }
+tickStyle = {rulerStyle | width <- 3}
+
+tick : Int -> Form
+tick n = path [V.scale gsz (0, tf n), V.scale gsz (0.5, tf n)] |> traced tickStyle
+
+ruler : Form
+ruler = [ path [V.scale gsz (0,-10), V.scale gsz (0,10)] |> traced rulerStyle
+        , map tick [-10..10] |> group
+        ] |> group
+
+
 background : Int -> Int -> Element
-background w h = collage w h [rect (tf w) (tf h) |> filled (grey)]
+background w h =[ rect (tf w) (tf h) |> filled (grey)
+                , ruler
+                ]   |> collage w h
 
 bannerStyle : T.Style
 bannerStyle =   { typeface = ["Helvetica Neue", "Verdana", "Arial", "sans_serif"]
@@ -51,7 +65,7 @@ label strip = strip.n
                 |> width gridSize
 
 stripElement : M.Strip -> Element
-stripElement strip =    [ spacer (gridSize-2) (gridSize*strip.n - 2)
+stripElement strip =    [ spacer (gridSize-1) (gridSize*strip.n - 2)
                             |> color (M.color strip)
                         , flow down (map (overlay strip) [1..strip.n])
                         , label strip

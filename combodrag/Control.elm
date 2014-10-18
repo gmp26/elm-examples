@@ -1,41 +1,67 @@
 module Control (update) where
 
 import Model as M
+import Model (Alignment (..), Strip, State (..), GameState, Event (..))
 import Vector as V
 import View (gridDelta)
+import Utils (gsz)
 import DragAndDrop as DD
 import Debug (watch)
 
 --
 -- UPDATE
 --
-modify: M.Strip -> (M.Strip -> M.Strip) -> (M.Strip -> M.Strip) -> M.GameState -> M.GameState
-modify strip f f' gs =
+toGrid : Strip -> Strip
+toGrid strip =
+    let bb = M.box strip
+        tl = bb.topLeft
+        grid coord = (coord / gsz) |> round
+    in  M.align TL (grid <| (V.x tl), grid <| (V.y tl)) strip
+
+setDragging : Bool -> Strip -> Strip
+setDragging b s = {s | dragging <- b} 
+
+-- bring a strip to the top of a display list -- i.e. make it the last one
+-- also highlight it if it overlaps another
+toTop : Bool -> Strip -> [Strip] -> [Strip]
+toTop sense strip strips =
+    let (rest, [activeStrip]) = partition (\s -> s.n /= strip.n) strips
+    in rest ++ [if (any (M.overlaps activeStrip) rest)
+                    then {activeStrip | highlight <- sense}
+                    else {activeStrip | highlight <- False}]
+
+-- update strips within the GameState, applying first transform to
+-- the given strip, and the second transform to the remainder
+modify: Bool -> Strip -> (Strip -> Strip) -> (Strip -> Strip) -> GameState -> GameState
+modify sense strip f f' gs =
     let aStrips = map (\s -> if s.n == strip.n then f s else f' s) gs.strips
-    in {gs | strips <- aStrips}
+    in {gs | strips <- toTop sense strip aStrips}
 
--- bring a strip to the top of the display stack
-toTop : M.Strip -> M.GameState -> M.GameState
-toTop strip gs =
-    let p = partition (\s -> s /= strip {-not s.dragging-}) gs.strips
-    in {gs | strips <- (fst p) ++ (snd p)}
+activate : Strip -> (Strip -> Strip) -> (Strip -> Strip) -> GameState -> GameState
+activate = modify True
 
-startDrag : M.Strip -> M.GameState -> M.GameState
+deactivate : Strip -> (Strip -> Strip) -> (Strip -> Strip) -> GameState -> GameState
+deactivate = modify False
+
+
+----------------
+
+startDrag : Strip -> GameState -> GameState
 startDrag strip gs =
-    modify strip (M.setDragging True) (M.setDragging False) (toTop strip gs)
+    activate strip (setDragging True) (setDragging False) gs
 
-drag : M.Strip -> V.Vector Int -> M.GameState -> M.GameState
+drag : Strip -> V.Vector Int -> GameState -> GameState
 drag strip delta gs =
-    let over s = {s | highlight <- s `M.overlaps` strip}
-        translate s = {s | loc <- s.loc `V.plus` (gridDelta delta)}
-    in modify strip translate over (toTop strip gs)
+    let translate s = {s | loc <- s.loc `V.plus` (gridDelta delta)}
+    in activate strip translate identity gs
 
-stopDrag : M.Strip -> M.GameState -> M.GameState
+stopDrag : Strip -> GameState -> GameState
 stopDrag strip gs =
-    let over s = {s | highlight <- s `M.overlaps` strip}
-    in modify strip (M.toGrid << M.setDragging False) over (toTop strip gs)
+    deactivate strip (toGrid << setDragging False) identity gs
 
-update : M.Event -> M.State -> M.State
+----------------
+
+update : M.Event -> State -> State
 update event state = case state of
     M.Start     -> M.Play M.initialGame
 

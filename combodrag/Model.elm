@@ -1,8 +1,8 @@
 {--}
 module Model    ( Strip, initialState, initialGame
                 , color, GameState, State (..), testStrip
-                , setDragging, toGrid, Event (..), align, Alignment (..)
-                , overlaps
+                , Event (..), align, Alignment (..)
+                , overlaps, box
                 ) where
 --}
 {--
@@ -96,26 +96,15 @@ align corner at strip =
         BR  -> {strip | loc <- strip.loc `plus` (atF `minus` bb.bottomRight) }
 
 -- align a strip to the nearest grid point
-toGrid : Strip -> Strip
-toGrid strip =
-    let bb = box strip
-        tl = bb.topLeft
-        grid coord = (coord / gsz) |> round
-    in  align TL (grid <| (V.x tl), grid <| (V.y tl)) strip
-
-setDragging : Bool -> Strip -> Strip
-setDragging b s = {s | dragging <- b} 
 
 overlaps : Strip -> Strip -> Bool
 overlaps s1 s2 =
     let b2 = box s1
         b1 = box s2
-        fuzz = 20
-        foo = watch "over" (b1, b2, result)
-        result =  (   (V.x b1.bottomRight) + fuzz > (V.x b2.topLeft)
-        &&  (V.x b1.topLeft) < (V.x b2.bottomRight) + fuzz
-        &&  (V.y b1.topLeft) + fuzz > (V.y b2.bottomRight)
-        &&  (V.y b1.bottomRight) < (V.y b2.topLeft) + fuzz
+        result =  (   (V.x b1.bottomRight) > (V.x b2.topLeft)
+        &&  (V.x b1.topLeft) < (V.x b2.bottomRight)
+        &&  (V.y b1.topLeft) > (V.y b2.bottomRight)
+        &&  (V.y b1.bottomRight) < (V.y b2.topLeft)
         )
     in result
 

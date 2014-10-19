@@ -95,17 +95,17 @@ align corner at strip =
         BL  -> {strip | loc <- strip.loc `plus` (atF `minus` (V.x bb.topLeft, V.y bb.bottomRight)) }
         BR  -> {strip | loc <- strip.loc `plus` (atF `minus` bb.bottomRight) }
 
--- align a strip to the nearest grid point
 
 overlaps : Strip -> Strip -> Bool
 overlaps s1 s2 =
     let b2 = box s1
         b1 = box s2
-        result =  (   (V.x b1.bottomRight) > (V.x b2.topLeft)
-        &&  (V.x b1.topLeft) < (V.x b2.bottomRight)
-        &&  (V.y b1.topLeft) > (V.y b2.bottomRight)
-        &&  (V.y b1.bottomRight) < (V.y b2.topLeft)
-        )
+        result  =  s1.n /= s2.n 
+                && (V.x b1.bottomRight) >= (V.x b2.topLeft)
+                && (V.x b1.topLeft) <= (V.x b2.bottomRight)
+                && (V.y b1.topLeft) >= (V.y b2.bottomRight)
+                && (V.y b1.bottomRight) <= (V.y b2.topLeft)
+        
     in result
 
 -- tests

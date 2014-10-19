@@ -18,31 +18,66 @@ toGrid strip =
         grid coord = (coord / gsz) |> round
     in  M.align TL (grid <| (V.x tl), grid <| (V.y tl)) strip
 
+-- vertical align top with another strip
+alignTop : Strip -> Strip -> Strip
+alignTop strip toStrip =
+  let bb = M.box toStrip
+      at = V.scale (1/gsz) bb.topLeft |> V.round
+  in M.align TL at strip
+
+-- vertical align bottom with another strip
+alignBottom : Strip -> Strip -> Strip
+alignBottom strip toStrip =
+  let bb = M.box toStrip
+      at = V.scale (1/gsz) bb.bottomRight |> V.round
+  in M.align BR at strip
+
+-- vertical align to nearest top or bottom boundary
+alignNearest : Strip -> Strip -> Strip
+alignNearest strip toStrip = if (V.y strip.loc > V.y toStrip.loc) 
+    then alignTop strip toStrip
+    else alignBottom strip toStrip
+
 setDragging : Bool -> Strip -> Strip
 setDragging b s = {s | dragging <- b} 
 
 -- bring a strip to the top of a display list -- i.e. make it the last one
 -- also highlight it if it overlaps another
-toTop : Bool -> Strip -> [Strip] -> [Strip]
-toTop sense strip strips =
-    let (rest, [activeStrip]) = partition (\s -> s.n /= strip.n) strips
-    in rest ++ [if (any (M.overlaps activeStrip) rest)
-                    then {activeStrip | highlight <- sense}
-                    else {activeStrip | highlight <- False}]
+toTop : Strip -> [Strip] -> [Strip]
+toTop strip strips =
+    {strip | highlight <- (any (M.overlaps strip) rest)} ++ rest
+        |> reverse
+
+-- if a strip overlaps another, then place the larger under the smaller
+-- and align them both to top or bottom according to which is closest.
+dropOn : Strip -> [Strip] -> [Strip]
+dropOn strip strips =
+    let rest = filter (\s -> s.n /= strip.n) strips
+        activeStrip = {strip | highlight <- False}
+        (overlaps, disjoints) = partition (M.overlaps activeStrip) rest
+        displayOrder = sortBy .n overlaps |> reverse
+    in  case partition (\s -> s.n < activeStrip.n) displayOrder of
+            ([],[])
+                -> activeStrip :: rest
+            (smaller, []) 
+                ->  let aligned = alignNearest activeStrip (head::smaller)
+                    in aligned :: (smaller ++ disjoints)
+            (smaller, larger)
+                ->  let aligned = alignNearest activeStrip (head::larger)
+                    in larger ++ (aligned :: smaller) ++ disjoints
 
 -- update strips within the GameState, applying first transform to
 -- the given strip, and the second transform to the remainder
-modify: Bool -> Strip -> (Strip -> Strip) -> (Strip -> Strip) -> GameState -> GameState
-modify sense strip f f' gs =
-    let aStrips = map (\s -> if s.n == strip.n then f s else f' s) gs.strips
-    in {gs | strips <- toTop sense strip aStrips}
-
 activate : Strip -> (Strip -> Strip) -> (Strip -> Strip) -> GameState -> GameState
-activate = modify True
+activate =     
+    let aStrips = map (\s -> if s.n == strip.n then f s else f' s) gs.strips
+    in {gs | strips <- strip `toTop` aStrips}
+
 
 deactivate : Strip -> (Strip -> Strip) -> (Strip -> Strip) -> GameState -> GameState
-deactivate = modify False
-
+deactivate strip f gs =
+    let aStrips = map (\s -> if s.n == strip.n then f s else s) gs.strips
+    in {gs | strips <- strip `dropOn` aStrips}
 
 ----------------
 

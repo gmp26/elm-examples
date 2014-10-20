@@ -2,7 +2,7 @@
 module Model    ( Strip, initialState, initialGame
                 , color, GameState, State (..), testStrip
                 , Event (..), align, Alignment (..)
-                , overlaps, box
+                , overlaps, box, transparent
                 ) where
 --}
 {--
@@ -29,9 +29,10 @@ type GameState  =   { strips : [Strip]
                     }
 
 initialGame : GameState          
-initialGame =   { strips =  [ align BL (-5,-5) <| makeStrip 1 (0,0)
-                            , align BL (-4,-5) <| makeStrip 3 (0,0)
-                            , align BL (-3,-5) <| makeStrip 9 (0,0)
+initialGame =   { strips =  [ align BL (-5,-5) <| makeStrip 2 (0,0)
+                            , align BL (-4,-5) <| makeStrip 4 (0,0)
+                            , align BL (-3,-5) <| makeStrip 6 (0,0)
+                            , align BL (-2,-5) <| makeStrip 10 (0,0)
                             ]
                 }
 data State = Start | Play GameState
@@ -41,21 +42,26 @@ data Event = GotoPlay | Drag (Maybe (Strip, DD.Action))
 initialState : State
 initialState = Start
 
+transparent : Color -> Color
+transparent color = 
+    let col = toRgb color
+    in rgba col.red col.green col.blue 1.0
+
 color : Strip -> Color 
 color strip = if strip.highlight
     then red
     else case strip.n of
-        1 ->  white
-        2 ->  lightRed
-        3 ->  green
-        4 ->  lightPurple
-        5 ->  yellow
-        6 ->  darkGreen
-        7 ->  black
-        8 ->  darkBrown
-        9 ->  blue
-        10 -> orange
-        otherwise -> grey
+        1 -> transparent white 
+        2 -> transparent lightRed
+        3 -> transparent green
+        4 -> transparent lightPurple
+        5 -> transparent yellow
+        6 -> transparent darkGreen
+        7 -> transparent black
+        8 -> transparent darkBrown
+        9 -> transparent blue
+        10 -> transparent orange
+        otherwise -> transparent grey
 
 textColor : Strip -> Color 
 textColor strip = case strip.n of
@@ -98,13 +104,14 @@ align corner at strip =
 
 overlaps : Strip -> Strip -> Bool
 overlaps s1 s2 =
-    let b2 = box s1
-        b1 = box s2
+    let b2 = box s2
+        b1 = box s1
+        epsilon = 1e-6
         result  =  s1.n /= s2.n 
-                && (V.x b1.bottomRight) >= (V.x b2.topLeft)
-                && (V.x b1.topLeft) <= (V.x b2.bottomRight)
-                && (V.y b1.topLeft) >= (V.y b2.bottomRight)
-                && (V.y b1.bottomRight) <= (V.y b2.topLeft)
+                && (V.x s1.loc) > (V.x b2.topLeft) + epsilon
+                && (V.x s1.loc) < (V.x b2.bottomRight) - epsilon
+                && (V.y b1.topLeft) > (V.y b2.bottomRight) + epsilon
+                && (V.y b1.bottomRight) < (V.y b2.topLeft) - epsilon
         
     in result
 

@@ -6,9 +6,10 @@
     "exposed-modules": [],
     "elm-version": "0.13",
     "dependencies": {
+        "evancz/automaton": "1.0.1",
         "etaque/elm-drag": "0.1",
         "jvoigtlaender/drag-and-drop-elm": "0.2",
-        "evancz/automaton": "1.0.1"
+        "evancz/elm-html": "0.3"
     },
     "repository": "https://github.com/USER/PROJECT.git"
 }

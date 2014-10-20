@@ -33,48 +33,63 @@ alignBottom strip toStrip =
   in M.align BR at strip
 
 -- vertical align to nearest top or bottom boundary
-alignNearest : Strip -> Strip -> Strip
-alignNearest strip toStrip = if (V.y strip.loc > V.y toStrip.loc) 
+alignNearest' : Bool -> Strip -> Strip -> Strip
+alignNearest' top strip toStrip = if (top `xor` (V.y strip.loc > V.y toStrip.loc))
     then alignTop strip toStrip
     else alignBottom strip toStrip
+
+alignSmaller : Strip -> Strip -> Strip
+alignSmaller = alignNearest' True
+
+alignLarger : Strip -> Strip -> Strip
+alignLarger = alignNearest' False
 
 setDragging : Bool -> Strip -> Strip
 setDragging b s = {s | dragging <- b} 
 
 -- bring a strip to the top of a display list -- i.e. make it the last one
 -- also highlight it if it overlaps another
+--toTop : Strip -> [Strip] -> [Strip]
+--toTop strip strips =
+--    let rest = filter (\s -> s.n /= strip.n) strips
+--    in {strip | highlight <- (any (M.overlaps strip) rest)} :: rest
+--        |> reverse
+
 toTop : Strip -> [Strip] -> [Strip]
 toTop strip strips =
-    {strip | highlight <- (any (M.overlaps strip) rest)} ++ rest
-        |> reverse
+    let (rest, [activeStrip]) = partition (\s -> s.n /= strip.n) strips
+    in rest ++ [if (any (M.overlaps activeStrip) rest)
+                    then {activeStrip | highlight <- True}
+                    else {activeStrip | highlight <- False}]
+
 
 -- if a strip overlaps another, then place the larger under the smaller
 -- and align them both to top or bottom according to which is closest.
 dropOn : Strip -> [Strip] -> [Strip]
 dropOn strip strips =
-    let rest = filter (\s -> s.n /= strip.n) strips
-        activeStrip = {strip | highlight <- False}
+    let (rest, [theStrip]) = partition (\s -> s.n /= strip.n) strips
+        activeStrip = {theStrip | highlight <- False}
         (overlaps, disjoints) = partition (M.overlaps activeStrip) rest
         displayOrder = sortBy .n overlaps |> reverse
     in  case partition (\s -> s.n < activeStrip.n) displayOrder of
             ([],[])
                 -> activeStrip :: rest
             (smaller, []) 
-                ->  let aligned = alignNearest activeStrip (head::smaller)
+                ->  let aligned = alignSmaller activeStrip (head smaller)
                     in aligned :: (smaller ++ disjoints)
             (smaller, larger)
-                ->  let aligned = alignNearest activeStrip (head::larger)
+                ->  let aligned = alignLarger activeStrip (head larger)
                     in larger ++ (aligned :: smaller) ++ disjoints
 
 -- update strips within the GameState, applying first transform to
 -- the given strip, and the second transform to the remainder
 activate : Strip -> (Strip -> Strip) -> (Strip -> Strip) -> GameState -> GameState
-activate =     
-    let aStrips = map (\s -> if s.n == strip.n then f s else f' s) gs.strips
-    in {gs | strips <- strip `toTop` aStrips}
+activate strip f1 f2 gs =     
+    let aStrips = map (\s -> if s.n == strip.n then f1 s else f2 s) gs.strips
+    in {gs | strips <- toTop strip aStrips}
 
 
-deactivate : Strip -> (Strip -> Strip) -> (Strip -> Strip) -> GameState -> GameState
+deactivate : Strip -> (Strip -> Strip) -> GameState -> GameState
 deactivate strip f gs =
     let aStrips = map (\s -> if s.n == strip.n then f s else s) gs.strips
     in {gs | strips <- strip `dropOn` aStrips}
@@ -92,15 +107,15 @@ drag strip delta gs =
 
 stopDrag : Strip -> GameState -> GameState
 stopDrag strip gs =
-    deactivate strip (toGrid << setDragging False) identity gs
+    deactivate strip (toGrid << setDragging False) gs
 
 ----------------
 
 update : M.Event -> State -> State
-update event state = case state of
+update event state = case watch "state" state of
     M.Start     -> M.Play M.initialGame
 
-    M.Play gs   -> watch "state" <| case event of
+    M.Play gs   -> case watch "event" event of
         M.Drag (Just (strip, DD.Lift))           -> M.Play <| startDrag strip gs
         M.Drag (Just (strip, DD.MoveBy delta))   -> M.Play <| drag strip delta gs
         M.Drag (Just (strip, DD.Release))        -> M.Play <| stopDrag strip gs

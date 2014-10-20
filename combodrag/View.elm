@@ -1,4 +1,7 @@
+module View where
+{--
 module View (render, gridDelta, hover) where
+--}
 
 import Utils (tf, gridSize, gsz)
 import Model as M
@@ -71,7 +74,7 @@ stripElement strip =    [ spacer (gridSize-1) (gridSize*strip.n - 2)
                         , label strip
                         ]   |> layers
                             |> container (gridSize+1) (gridSize*strip.n+1) bottomRight
-                            |> color black
+--                            |> color (black)
 
 
 draggable : M.Strip -> Element
@@ -110,6 +113,6 @@ render (w,h) state = case state of
 --testStrip n = M.align M.BR (n-5,-5) {n = n, loc = (0, 0), dragging = False}
 
 main : Element
-main = asText "Hi"
-    --let testDraw  = { strips = [1..10] |> map M.testStrip}
-    --    in render (500,500) <| M.Play testDraw
+main = 
+    let testDraw  = { strips = [1..10] |> map M.testStrip}
+    in render (500,500) <| M.Play testDraw

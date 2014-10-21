@@ -1,7 +1,7 @@
 module Control (update) where
 
 import Model as M
-import Model (Alignment (..), Strip, State (..), GameState, Event (..))
+import Model (Alignment (..), Strip, State (..), GameState, Event (..), Expression (..))
 import Vector as V
 import View (gridDelta)
 import Utils (gsz)
@@ -49,12 +49,6 @@ setDragging b s = {s | dragging <- b}
 
 -- bring a strip to the top of a display list -- i.e. make it the last one
 -- also highlight it if it overlaps another
---toTop : Strip -> [Strip] -> [Strip]
---toTop strip strips =
---    let rest = filter (\s -> s.n /= strip.n) strips
---    in {strip | highlight <- (any (M.overlaps strip) rest)} :: rest
---        |> reverse
-
 toTop : Strip -> [Strip] -> [Strip]
 toTop strip strips =
     let (rest, [activeStrip]) = partition (\s -> s.n /= strip.n) strips
@@ -81,8 +75,17 @@ dropOn strip strips =
                 ->  let aligned = alignLarger activeStrip (head larger)
                     in larger ++ (aligned :: smaller) ++ disjoints
 
+
+-- Determine whether a strip has been dropped on the ruler. If so, add
+-- to the set of measures that are available
+updateMeasures : Strip -> [Expression] -> [Expression]
+updateMeasures strip measures =
+    []
+
+
 -- update strips within the GameState, applying first transform to
 -- the given strip, and the second transform to the remainder
+-- if a strip drops on the ruler, it will (somehow) trigger new measurements
 activate : Strip -> (Strip -> Strip) -> (Strip -> Strip) -> GameState -> GameState
 activate strip f1 f2 gs =     
     let aStrips = map (\s -> if s.n == strip.n then f1 s else f2 s) gs.strips
@@ -92,7 +95,9 @@ activate strip f1 f2 gs =
 deactivate : Strip -> (Strip -> Strip) -> GameState -> GameState
 deactivate strip f gs =
     let aStrips = map (\s -> if s.n == strip.n then f s else s) gs.strips
-    in {gs | strips <- strip `dropOn` aStrips}
+    in  {gs |   strips <- strip `dropOn` aStrips
+        ,       measures <- updateMeasures strip gs.measures
+        }
 
 ----------------
 
@@ -112,7 +117,7 @@ stopDrag strip gs =
 ----------------
 
 update : M.Event -> State -> State
-update event state = case watch "state" state of
+update event state = case watch "measures" state of
     M.Start     -> M.Play M.initialGame
 
     M.Play gs   -> case watch "event" event of

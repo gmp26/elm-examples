@@ -25,18 +25,31 @@ rulerStyle = { defaultLine | color <- white, width <- 5 }
 tickStyle = {rulerStyle | width <- 3}
 
 tick : Int -> Form
-tick n = path [V.scale gsz (0, tf n), V.scale gsz (0.5, tf n)] |> traced tickStyle
+tick n = path [V.scale gsz (0.5, tf n), V.scale gsz (-0.5, tf n)] |> traced tickStyle
 
-ruler : Form
-ruler = [ path [V.scale gsz (0,-10), V.scale gsz (0,10)] |> traced rulerStyle
-        , map tick [-10..10] |> group
-        ] |> group
+ruler : Int -> Int -> Element
+ruler w h =   [ rect (2*gsz) (tf h) 
+                |> filled darkGrey
+                |> moveX -(gsz/2)
+            --, path [V.scale gsz (0,-10), V.scale gsz (0,10)] |> traced rulerStyle
+            , map tick [-20..20] |> group
+            , "drag to ruler"
+                |> T.toText
+                |> T.color white
+                |> T.height (gsz*0.75)
+                |> T.centered
+                |> width h
+                |> toForm
+                |> rotate (pi/2)
+                |> move (-gsz, 0)
+            ] |> collage w h
 
 
 background : Int -> Int -> Element
-background w h =[ rect (tf w) (tf h) |> filled (grey)
-                , ruler
-                ]   |> collage w h
+background w h =
+    let hf = tf h 
+    in  [ rect (tf w) hf |> filled (grey)
+        ]   |> collage w h
 
 bannerStyle : T.Style
 bannerStyle =   { typeface = ["Helvetica Neue", "Verdana", "Arial", "sans_serif"]
@@ -77,6 +90,7 @@ stripElement strip =    [ spacer (gridSize-1) (gridSize*strip.n - 2)
 --                            |> color (black)
 
 
+
 draggable : M.Strip -> Element
 draggable strip = 
   let which s = if s then Just strip else Nothing
@@ -103,6 +117,7 @@ render (w,h) state = case state of
                 ]
     M.Play gs   ->  flow outward 
                 [ background w h
+                , ruler w h
                 , renderGame (w,h) gs
                 ]
 
@@ -114,5 +129,5 @@ render (w,h) state = case state of
 
 main : Element
 main = 
-    let testDraw  = { strips = [1..10] |> map M.testStrip}
+    let testDraw  = { strips = ([1..10] |> map M.testStrip), measures = []}
     in render (500,500) <| M.Play testDraw

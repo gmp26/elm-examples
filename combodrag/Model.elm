@@ -2,7 +2,7 @@
 module Model    ( Strip, initialState, initialGame
                 , color, GameState, State (..), testStrip
                 , Event (..), align, Alignment (..)
-                , overlaps, box, transparent
+                , overlaps, box, transparent, Expression (..)
                 ) where
 --}
 {--
@@ -19,13 +19,23 @@ import Debug (log, watch)
 type Strip      =   { n         : Int
                     , loc       : V.Vector Float
                     , dragging  : Bool
-                    , highlight : Bool  
+                    , highlight : Bool
+                    , measured  : Bool 
                     }
 
 makeStrip : Int -> V.Vector Float -> Strip
-makeStrip n loc = { n = n, loc = loc, dragging = False, highlight=False} 
+makeStrip n loc = { n = n, loc = loc, dragging = False, highlight=False, measured=False} 
+
+data Op         =   Plus | Minus
+
+data Expression =   Term |  Binop { expr1 : Expression
+                            , op: Op
+                            , expr2 : Expression
+                            }
+
 
 type GameState  =   { strips : [Strip]
+                    , measures : [Expression]
                     }
 
 initialGame : GameState          
@@ -34,6 +44,7 @@ initialGame =   { strips =  [ align BL (-5,-5) <| makeStrip 2 (0,0)
                             , align BL (-3,-5) <| makeStrip 6 (0,0)
                             , align BL (-2,-5) <| makeStrip 10 (0,0)
                             ]
+                , measures = []
                 }
 data State = Start | Play GameState
 

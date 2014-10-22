@@ -127,7 +127,8 @@ render (w,h) state = case state of
 --testStrip : Int -> M.Strip
 --testStrip n = M.align M.BR (n-5,-5) {n = n, loc = (0, 0), dragging = False}
 
+
 main : Element
 main = 
-    let testDraw  = { strips = ([1..10] |> map M.testStrip), measures = []}
+    let testDraw  = { strips = ([1..10] |> map M.testStrip), measures = [], reached = []}
     in render (500,500) <| M.Play testDraw

@@ -48,7 +48,7 @@ dictReachables maxLength stripCount =
                 |> D.toList
 {--}
 main : Element
-main = [10,5,2,1] |> reachables >> S.fromList >> S.toList >> sort >> asText
+main = [9,3,1] |> reachables >> S.fromList >> S.toList >> sort >> asText
 --}
 {--
 main : Element

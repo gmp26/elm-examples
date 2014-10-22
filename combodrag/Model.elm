@@ -12,6 +12,7 @@ import Utils (tf, gridSize, gsz)
 import Vector as V
 import Vector (plus, minus)
 import DragAndDrop as DD
+import Tuples as R
 import Debug (log, watch)
 
 
@@ -36,22 +37,40 @@ data Expression =   Term |  Binop { expr1 : Expression
 
 type GameState  =   { strips : [Strip]
                     , measures : [Expression]
+                    , reached : [Int]
                     }
 
 initialGame : GameState          
-initialGame =   { strips =  [ align BL (-5,-5) <| makeStrip 2 (0,0)
+initialGame =   
+    let gs =    { strips =  [ align BL (-5,-5) <| makeStrip 2 (0,0)
                             , align BL (-4,-5) <| makeStrip 4 (0,0)
                             , align BL (-3,-5) <| makeStrip 6 (0,0)
                             , align BL (-2,-5) <| makeStrip 10 (0,0)
                             ]
                 , measures = []
+                , reached = []
                 }
+    in {gs | reached <- map (\s -> s.n) gs.strips} 
+
+
 data State = Start | Play GameState
 
 data Event = GotoPlay | Drag (Maybe (Strip, DD.Action))
 
 initialState : State
 initialState = Start
+
+changeStrips : [Strip] -> GameState -> GameState
+changeStrips strips gs =
+    { gs | strips <- strips
+    , measures <- []
+    , reached <- reachables gs
+    }
+
+reachables : GameState -> [Int]
+reachables gs = 
+    map (\s -> s.n) gs.strips
+        |> R.reachables
 
 transparent : Color -> Color
 transparent color = 

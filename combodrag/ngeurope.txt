@@ -1,0 +1,11 @@
+ng-Aria
+graphic.com/design
+angular material
+material design ? widgets?
+strictDI
+{{::bind}}
+templatenamespace ="svg"
+ionic again
+dgeni (Pete Bacon drawin)     github/angular/dgeni
+nunjunks instead of lodash?
+dgeni code may help wih ng cmep

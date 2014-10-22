@@ -3,6 +3,7 @@ module Model    ( Strip, initialState, initialGame
                 , color, GameState, State (..), testStrip
                 , Event (..), align, Alignment (..)
                 , overlaps, box, transparent, Expression (..)
+                , aboveOrBelow
                 ) where
 --}
 {--
@@ -107,14 +108,23 @@ textColor strip = case strip.n of
   10 -> orange
   otherwise -> grey
 
-type Bounds     = { topLeft     : V.Vector Float
-                  , bottomRight : V.Vector Float
-                  }
+type Bounds   = { topLeft     : V.Vector Float
+                ,  topRight    : V.Vector Float
+                , bottomLeft  : V.Vector Float
+                , bottomRight : V.Vector Float
+                }
 
 box : Strip -> Bounds
 box strip = let u = (-(gsz / 2), (gsz * tf strip.n) / 2)
-            in  { topLeft = strip.loc `plus` u
-                , bottomRight = strip.loc `minus` u
+                tl = strip.loc `plus` u
+                br = strip.loc `minus` u
+                tr = (V.x br, V.y bl)
+                bl = (V.x br, V.y br)
+
+            in  { topLeft = tl
+                , topRight = tr
+                , bottomLeft = bl
+                , bottomRight = br
                 }
 
 data Alignment = TL | TR | BL | BR
@@ -141,9 +151,20 @@ overlaps s1 s2 =
                 && (V.x s1.loc) > (V.x b2.topLeft) + epsilon
                 && (V.x s1.loc) < (V.x b2.bottomRight) - epsilon
                 && (V.y b1.topLeft) > (V.y b2.bottomRight) + epsilon
-                && (V.y b1.bottomRight) < (V.y b2.topLeft) - epsilon
-        
+                && (V.y b1.bottomRight) < (V.y b2.topLeft) - epsilon   
     in result
+
+
+aboveOrBelow  : Strip -> Strip -> Bool
+aboveOrBelow s1 s2 =
+    let b2 = box s2
+        b1 = box s1
+        epsilon = 1e-6  
+        result  =  V.abs (b2.topLeft `V.minus` b1.bottomLeft) < epsilon
+                || V.abs (b2.bottomLeft `V.minus` b1.topLeft) < epsilon
+    in result
+
+
 
 -- tests
 

@@ -57,30 +57,58 @@ toTop strip strips =
                     else {activeStrip | highlight <- False}]
 
 
+addExtraOps : Strip -> [Strip] -> [Int] -> [Int]
+addExtraOps strip strips reached =
+    (map (\s -> abs <| s.n - strip.n) strips) ++ reached
+
 -- if a strip overlaps another, then place the larger under the smaller
 -- and align them both to top or bottom according to which is closest.
-dropOn : Strip -> [Strip] -> [Strip]
-dropOn strip strips =
-    let (rest, [theStrip]) = partition (\s -> s.n /= strip.n) strips
+dropOn : Strip -> GameState -> GameState
+dropOn strip gs =
+    let
+        (rest, [theStrip]) = partition (\s -> s.n /= strip.n) gs.strips
         activeStrip = {theStrip | highlight <- False}
         (overlaps, disjoints) = partition (M.overlaps activeStrip) rest
+        adjacents = filter (M.aboveOrBelow activeStrip) disjoints
         displayOrder = sortBy .n overlaps |> reverse
-    in  case partition (\s -> s.n < activeStrip.n) displayOrder of
-            ([],[])
-                -> activeStrip :: rest
-            (smaller, []) 
-                ->  let aligned = alignSmaller activeStrip (head smaller)
-                    in aligned :: (smaller ++ disjoints)
-            (smaller, larger)
-                ->  let aligned = alignLarger activeStrip (head larger)
-                    in larger ++ (aligned :: smaller) ++ disjoints
+    in case partition (\s -> s.n < activeStrip.n) displayOrder of
+        ([],[])
+            ->  { gs |  strips <- activeStrip :: rest}
+        (smaller, []) 
+            ->  let aligned = alignSmaller activeStrip (head smaller)
+                in  { gs | strips <- aligned :: (smaller ++ disjoints)
+                    , reached <- addExtraOps aligned smaller gs.reached
+                    }
+        ([], larger)
+            ->  let aligned = alignLarger activeStrip (head larger)
+                in  { gs | strips <- larger ++ [aligned] ++ disjoints
+                    , reached <- [] -- TODO!!
+                    }
+        (smaller, larger)
+            ->  let aligned = alignLarger activeStrip (head larger)
+                in  { gs | strips <- larger ++ (aligned :: smaller) ++ disjoints
+                    , reached <- [] -- TODO!!
+                    }
+                    
 
-
--- Determine whether a strip has been dropped on the ruler. If so, add
--- to the set of measures that are available
-updateMeasures : Strip -> [Expression] -> [Expression]
-updateMeasures strip measures =
-    []
+--dropOn : Strip -> [Strip] -> [Strip]
+--dropOn strip strips =
+--    let (rest, [theStrip]) = partition (\s -> s.n /= strip.n) strips
+--        activeStrip = {theStrip | highlight <- False}
+--        (overlaps, disjoints) = partition (M.overlaps activeStrip) rest
+--        displayOrder = sortBy .n overlaps |> reverse
+--    in  case partition (\s -> s.n < activeStrip.n) displayOrder of
+--            ([],[])
+--                -> activeStrip :: rest
+--            (smaller, []) 
+--                ->  let aligned = alignSmaller activeStrip (head smaller)
+--                    in aligned :: (smaller ++ disjoints)
+--            ([], larger)
+--                ->  let aligned = alignLarger activeStrip (head larger)
+--                    in larger ++ aligned ++ disjoints
+--            (smaller, larger)
+--                ->  let aligned = alignLarger activeStrip (head larger)
+--                    in larger ++ (aligned :: smaller) ++ disjoints
 
 
 -- update strips within the GameState, applying first transform to
@@ -95,9 +123,9 @@ activate strip f1 f2 gs =
 deactivate : Strip -> (Strip -> Strip) -> GameState -> GameState
 deactivate strip f gs =
     let aStrips = map (\s -> if s.n == strip.n then f s else s) gs.strips
-    in  {gs |   strips <- strip `dropOn` aStrips
-        ,       measures <- updateMeasures strip gs.measures
-        }
+    in strip `dropOn` {gs | strips <- aStrips}
+
+    
 
 ----------------
 

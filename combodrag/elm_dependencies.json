@@ -9,7 +9,8 @@
         "evancz/automaton": "1.0.1",
         "etaque/elm-drag": "0.1",
         "jvoigtlaender/drag-and-drop-elm": "0.2",
-        "evancz/elm-html": "0.3"
+        "evancz/elm-html": "0.3",
+        "evancz/focus": "0.1"
     },
     "repository": "https://github.com/USER/PROJECT.git"
 }

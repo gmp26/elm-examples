@@ -2,7 +2,7 @@
 module Model    ( Strip, initialState, initialGame
                 , color, GameState, State (..), testStrip
                 , Event (..), align, Alignment (..)
-                , overlaps, box, transparent, Expression (..)
+                , overlaps, box, transparent
                 , aboveOrBelow
                 ) where
 --}
@@ -22,34 +22,29 @@ type Strip      =   { n         : Int
                     , loc       : V.Vector Float
                     , dragging  : Bool
                     , highlight : Bool
-                    , measured  : Bool 
                     }
 
 makeStrip : Int -> V.Vector Float -> Strip
-makeStrip n loc = { n = n, loc = loc, dragging = False, highlight=False, measured=False} 
+makeStrip n loc = { n = n, loc = loc, dragging = False, highlight=False} 
 
-data Op         =   Plus | Minus
+type Stack      =   { left      : [Int]
+                    , right     : [Int]
+                    }
+initialStack    =   { left = [], right = [] }    
 
-data Expression =   Term |  Binop { expr1 : Expression
-                            , op: Op
-                            , expr2 : Expression
-                            }
-
-
-type GameState  =   { strips : [Strip]
-                    , measures : [Expression]
-                    , reached : [Int]
+type GameState  =   { strips    : [Strip]
+                    , reached   : [Int]
+                    , stacks    : [Stack]
                     }
 
 initialGame : GameState          
 initialGame =   
-    let gs =    { strips =  [ align BL (-5,-5) <| makeStrip 2 (0,0)
-                            , align BL (-4,-5) <| makeStrip 4 (0,0)
-                            , align BL (-3,-5) <| makeStrip 6 (0,0)
-                            , align BL (-2,-5) <| makeStrip 10 (0,0)
+    let gs =    { strips =  [ align BL (-5,-5) <| makeStrip 3 (0,0)
+                            , align BL (-4,-5) <| makeStrip 5 (0,0)
+                            , align BL (-3,-5) <| makeStrip 7 (0,0)
                             ]
-                , measures = []
                 , reached = []
+                , stacks  = []
                 }
     in {gs | reached <- map (\s -> s.n) gs.strips} 
 
@@ -64,7 +59,6 @@ initialState = Start
 changeStrips : [Strip] -> GameState -> GameState
 changeStrips strips gs =
     { gs | strips <- strips
-    , measures <- []
     , reached <- reachables gs
     }
 

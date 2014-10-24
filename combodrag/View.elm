@@ -130,5 +130,5 @@ render (w,h) state = case state of
 
 main : Element
 main = 
-    let testDraw  = { strips = ([1..10] |> map M.testStrip), measures = [], reached = []}
+    let testDraw  = { strips = ([1..10] |> map M.testStrip), reached = [], stacks = []}
     in render (500,500) <| M.Play testDraw

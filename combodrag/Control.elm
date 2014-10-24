@@ -1,12 +1,13 @@
 module Control (update) where
 
 import Model as M
-import Model (Alignment (..), Strip, State (..), GameState, Event (..), Expression (..))
+import Model (Alignment (..), Strip, State (..), GameState, Event (..))
 import Vector as V
 import View (gridDelta)
 import Utils (gsz)
 import DragAndDrop as DD
-import Debug (watch)
+import Set as S
+import Debug (watch, log)
 
 --
 -- UPDATE
@@ -20,29 +21,31 @@ toGrid strip =
 
 -- vertical align top with another strip
 alignTop : Strip -> Strip -> Strip
-alignTop strip toStrip =
+alignTop toStrip strip =
   let bb = M.box toStrip
       at = V.scale (1/gsz) bb.topLeft |> V.round
   in M.align TL at strip
 
+-- TODO: switch first and second parameters of alignment functions
+
 -- vertical align bottom with another strip
 alignBottom : Strip -> Strip -> Strip
-alignBottom strip toStrip =
+alignBottom toStrip strip =
   let bb = M.box toStrip
       at = V.scale (1/gsz) bb.bottomRight |> V.round
-  in M.align BR at strip
+  in M.align BL at strip
 
 -- vertical align to nearest top or bottom boundary
 alignNearest' : Bool -> Strip -> Strip -> Strip
-alignNearest' top strip toStrip = if (top `xor` (V.y strip.loc > V.y toStrip.loc))
-    then alignTop strip toStrip
-    else alignBottom strip toStrip
+alignNearest' top toStrip strip = if (top `xor` (V.y strip.loc > V.y toStrip.loc))
+    then alignTop toStrip strip 
+    else alignBottom toStrip strip
 
 alignSmaller : Strip -> Strip -> Strip
-alignSmaller = alignNearest' True
+alignSmaller = alignBottom -- alignNearest' True
 
 alignLarger : Strip -> Strip -> Strip
-alignLarger = alignNearest' False
+alignLarger = alignBottom -- alignNearest' False
 
 setDragging : Bool -> Strip -> Strip
 setDragging b s = {s | dragging <- b} 
@@ -51,64 +54,88 @@ setDragging b s = {s | dragging <- b}
 -- also highlight it if it overlaps another
 toTop : Strip -> [Strip] -> [Strip]
 toTop strip strips =
-    let (rest, [activeStrip]) = partition (\s -> s.n /= strip.n) strips
-    in rest ++ [if (any (M.overlaps activeStrip) rest)
-                    then {activeStrip | highlight <- True}
-                    else {activeStrip | highlight <- False}]
+    case partition (\s -> s.n /= strip.n) strips of
+        (rest, [activeStrip]) ->  
+            rest ++ [if (any (M.overlaps activeStrip) rest)
+                        then {activeStrip | highlight <- True}
+                        else {activeStrip | highlight <- False}]
+        otherwise -> strips
 
 
-addExtraOps : Strip -> [Strip] -> [Int] -> [Int]
-addExtraOps strip strips reached =
-    (map (\s -> abs <| s.n - strip.n) strips) ++ reached
+data Affected a = Adjacent [a] | Overlap [a]
+type DropInfo a = {dropped : a, affected : Maybe (Affected a), rest : [a]}
+
+-- categorize the strips by drop location
+getDropInfo : Strip -> [Strip] -> DropInfo Strip
+getDropInfo strip strips = 
+    let (rest, [strip']) = partition (\s -> s.n /= strip.n) strips
+        (overlaps', rest') = partition (M.overlaps strip') rest
+        (adjacents, disjoints) = partition (M.aboveOrBelow strip') rest'
+        overlaps = sortBy .n overlaps' |> reverse
+
+    in  { dropped   =   {strip' | highlight <- False}
+        , affected  =   if  | not (isEmpty overlaps)  -> Just <| Overlap overlaps
+                            | not (isEmpty adjacents) -> Just <| Adjacent adjacents
+                            | otherwise             -> Nothing
+        , rest      = rest'
+        }
+
+{-
+-- A strip has been dropped on one or more other strips.
+-- The strip will be aligned with the top or bottom of the underlying strips,
+-- whichever is nearer.
+-- The display order will ensure all strips are visible (largest at bottom).
+-- New difference measures will be calculated.
+-}
+dropOver : Strip -> [Strip] -> [Strip] -> GameState -> GameState
+dropOver dropped overlaps rest gs =
+    case partition (\s -> s.n < dropped.n) overlaps of  
+        ([],[])
+            ->  { gs |  strips <- dropped :: rest}
+        (smaller, []) 
+            ->  let aligned = alignSmaller (head smaller) dropped
+                in  { gs | strips <- aligned :: (smaller ++ rest)
+                    , reached <- addExtraOps aligned smaller rest gs.reached
+                    }
+        ([], larger)
+            ->  let aligned = alignLarger (head larger) dropped
+                in  { gs | strips <- larger ++ [aligned] ++ rest
+                    , reached <- addExtraOps aligned larger rest gs.reached
+                    }
+        (smaller, larger)
+            ->  let aligned = alignLarger (head larger) dropped
+                in  { gs | strips <- larger ++ (aligned :: smaller) ++ rest
+                    , reached <- addExtraOps aligned (smaller++larger) rest gs.reached
+                    }
+
+-- Augment the current reached numbers with newly reached ones
+addExtraOps : Strip -> [Strip] -> [Strip] -> [Int] -> [Int]
+addExtraOps strip overlaps rest reached =
+    let sums  = (map (\s -> abs <| s.n - strip.n) overlaps)
+        diffs = if  not (isEmpty rest || isEmpty overlaps)
+                then 
+                    let r = head rest
+                        o = head overlaps
+                    in if r `M.overlaps` o
+                        then [abs(abs(r.n - o.n) - strip.n)]
+                        else []
+                else []
+    in diffs ++ sums ++ reached
+        |> S.fromList
+        |> S.toList
+        |> sort
+
 
 -- if a strip overlaps another, then place the larger under the smaller
 -- and align them both to top or bottom according to which is closest.
 dropOn : Strip -> GameState -> GameState
 dropOn strip gs =
-    let
-        (rest, [theStrip]) = partition (\s -> s.n /= strip.n) gs.strips
-        activeStrip = {theStrip | highlight <- False}
-        (overlaps, disjoints) = partition (M.overlaps activeStrip) rest
-        adjacents = filter (M.aboveOrBelow activeStrip) disjoints
-        displayOrder = sortBy .n overlaps |> reverse
-    in case partition (\s -> s.n < activeStrip.n) displayOrder of
-        ([],[])
-            ->  { gs |  strips <- activeStrip :: rest}
-        (smaller, []) 
-            ->  let aligned = alignSmaller activeStrip (head smaller)
-                in  { gs | strips <- aligned :: (smaller ++ disjoints)
-                    , reached <- addExtraOps aligned smaller gs.reached
-                    }
-        ([], larger)
-            ->  let aligned = alignLarger activeStrip (head larger)
-                in  { gs | strips <- larger ++ [aligned] ++ disjoints
-                    , reached <- [] -- TODO!!
-                    }
-        (smaller, larger)
-            ->  let aligned = alignLarger activeStrip (head larger)
-                in  { gs | strips <- larger ++ (aligned :: smaller) ++ disjoints
-                    , reached <- [] -- TODO!!
-                    }
-                    
-
---dropOn : Strip -> [Strip] -> [Strip]
---dropOn strip strips =
---    let (rest, [theStrip]) = partition (\s -> s.n /= strip.n) strips
---        activeStrip = {theStrip | highlight <- False}
---        (overlaps, disjoints) = partition (M.overlaps activeStrip) rest
---        displayOrder = sortBy .n overlaps |> reverse
---    in  case partition (\s -> s.n < activeStrip.n) displayOrder of
---            ([],[])
---                -> activeStrip :: rest
---            (smaller, []) 
---                ->  let aligned = alignSmaller activeStrip (head smaller)
---                    in aligned :: (smaller ++ disjoints)
---            ([], larger)
---                ->  let aligned = alignLarger activeStrip (head larger)
---                    in larger ++ aligned ++ disjoints
---            (smaller, larger)
---                ->  let aligned = alignLarger activeStrip (head larger)
---                    in larger ++ (aligned :: smaller) ++ disjoints
+    let {dropped, affected, rest} = getDropInfo strip gs.strips
+    in watch "state" <| case affected of
+        Just (Overlap overlaps)
+            -> dropOver dropped overlaps rest gs
+        otherwise
+            -> gs
 
 
 -- update strips within the GameState, applying first transform to
@@ -145,7 +172,7 @@ stopDrag strip gs =
 ----------------
 
 update : M.Event -> State -> State
-update event state = case watch "measures" state of
+update event state = case state of
     M.Start     -> M.Play M.initialGame
 
     M.Play gs   -> case watch "event" event of

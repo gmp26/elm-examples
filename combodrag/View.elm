@@ -21,28 +21,28 @@ hover = GI.input Nothing
 gridDelta : V.Vector Int -> V.Vector Float
 gridDelta (dx, dy) = (V.toFloat (dx, -dy))
 
-rulerStyle = { defaultLine | color <- white, width <- 5 }
-tickStyle = {rulerStyle | width <- 3}
+--rulerStyle = { defaultLine | color <- white, width <- 5 }
+--tickStyle = {rulerStyle | width <- 3}
 
-tick : Int -> Form
-tick n = path [V.scale gsz (0.5, tf n), V.scale gsz (-0.5, tf n)] |> traced tickStyle
+--tick : Int -> Form
+--tick n = path [V.scale gsz (0.5, tf n), V.scale gsz (-0.5, tf n)] |> traced tickStyle
 
-ruler : Int -> Int -> Element
-ruler w h =   [ rect (2*gsz) (tf h) 
-                |> filled darkGrey
-                |> moveX -(gsz/2)
-            --, path [V.scale gsz (0,-10), V.scale gsz (0,10)] |> traced rulerStyle
-            , map tick [-20..20] |> group
-            , "drag to ruler"
-                |> T.toText
-                |> T.color white
-                |> T.height (gsz*0.75)
-                |> T.centered
-                |> width h
-                |> toForm
-                |> rotate (pi/2)
-                |> move (-gsz, 0)
-            ] |> collage w h
+--ruler : Int -> Int -> Element
+--ruler w h =   [ rect (2*gsz) (tf h) 
+--                |> filled darkGrey
+--                |> moveX -(gsz/2)
+--            --, path [V.scale gsz (0,-10), V.scale gsz (0,10)] |> traced rulerStyle
+--            , map tick [-20..20] |> group
+--            , "drag to ruler"
+--                |> T.toText
+--                |> T.color white
+--                |> T.height (gsz*0.75)
+--                |> T.centered
+--                |> width h
+--                |> toForm
+--                |> rotate (pi/2)
+--                |> move (-gsz, 0)
+--            ] |> collage w h
 
 zoneElement : Int -> Int -> Float -> M.TLBR -> Element
 zoneElement w h n tlbr =
@@ -64,10 +64,10 @@ rightZone : Int -> Int -> M.TLBR
 rightZone = leftZone
 
 leftZoneElement : Int -> Int -> Element
-leftZoneElement w h = leftZone w h |> zoneElement w h 1
+leftZoneElement w h = leftZone w h |> zoneElement w h -1
 
 rightZoneElement : Int -> Int -> Element
-rightZoneElement w h = rightZone w h |> zoneElement w h 2
+rightZoneElement w h = rightZone w h |> zoneElement w h 0
 
 baseElement : Int -> Int -> Element
 baseElement w h =
@@ -79,7 +79,7 @@ baseElement w h =
             , segment (-w2, h2) (w2, h2) 
                 |> traced baseStyle
             ]   |> group
-                |> move (0, -h2 - (8 * gsz))
+                |> move (0, -h2 - (9 * gsz))
         ] |> collage w h
           |> opacity 0.7
 
@@ -112,6 +112,7 @@ label : M.Strip -> Element
 label strip = strip.n
                 |> show
                 |> T.toText
+                |> T.typeface ["Helvetica Neue", "Verdana", "Arial", "sans_serif"]
                 |> T.color (if strip.n<6 then black else white)
                 |> T.height (gsz*0.75)
                 |> T.bold
@@ -144,8 +145,6 @@ renderGame w h gs = gs.strips
                         |> map stripForm
                         |> collage w h 
 
-
-
 render : (Int,Int) -> M.State -> Element
 render (w,h) state = 
     let 
@@ -173,14 +172,9 @@ render (w,h) state =
         ] |> collage w h  
 
 
-
-
-
 -- test draw a stack of strips
 --testStrip : Int -> M.Strip
 --testStrip n = M.align M.BR (n-5,-5) {n = n, loc = (0, 0), dragging = False}
-
-
 main : Element
 main = 
     let testDraw  = {initialGame |  strips <- ([1..10] |> map M.testStrip) }

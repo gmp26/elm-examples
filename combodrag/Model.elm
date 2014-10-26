@@ -1,9 +1,10 @@
 {--}
 module Model    ( Strip, initialState, initialGame
-                , color, GameState, State (..), testStrip
+                , color, backgroundColor
+                , GameState, State (..), testStrip
                 , Event (..), align, Alignment (..)
                 , overlaps, box, transparent
-                , aboveOrBelow
+                , aboveOrBelow, TLBR
                 ) where
 --}
 {--
@@ -25,33 +26,43 @@ type Strip      =   { n         : Int
                     }
 
 makeStrip : Int -> V.Vector Float -> Strip
-makeStrip n loc = { n = n, loc = loc, dragging = False, highlight=False} 
+makeStrip n loc = { n = n, loc = loc, dragging = False, highlight = False } 
 
-type Stack      =   { left      : [Int]
-                    , right     : [Int]
-                    }
-initialStack    =   { left = [], right = [] }    
-
-type GameState  =   { strips    : [Strip]
+type GameState  =   { strips    : [Strip] -- all strips
                     , reached   : [Int]
-                    , stacks    : [Stack]
+                    , leftStack : [Strip]
+                    , rightStack : [Strip]
+                    , stackBase : V.Vector Float
+                    , w         : Int
+                    , h         : Int
                     }
 
 initialGame : GameState          
 initialGame =   
-    let gs =    { strips =  [ align BL (-5,-5) <| makeStrip 3 (0,0)
-                            , align BL (-4,-5) <| makeStrip 5 (0,0)
-                            , align BL (-3,-5) <| makeStrip 7 (0,0)
+    let gs =    { strips =  [ align BL (-7,-9) <| makeStrip 1 (0,0)
+                            --, align BL (-9,-9) <| makeStrip 2 (0,0)
+                            , align BL (-6,-9) <| makeStrip 3 (0,0)
+                            --, align BL (-7,-9) <| makeStrip 4 (0,0)
+                            --, align BL (-6,-9) <| makeStrip 5 (0,0)
+                            --, align BL (-5,-9) <| makeStrip 6 (0,0)
+                            --, align BL (-4,-9) <| makeStrip 7 (0,0)
+                            --, align BL (-3,-9) <| makeStrip 8 (0,0)
+                            , align BL (-5,-9) <| makeStrip 9 (0,0)
+                            --, align BL (-1,-9) <| makeStrip 10 (0,0)
                             ]
                 , reached = []
-                , stacks  = []
+                , leftStack = []
+                , rightStack = []
+                , stackBase = (0,0)
+                , w = 100
+                , h = 100
                 }
     in {gs | reached <- map (\s -> s.n) gs.strips} 
 
 
 data State = Start | Play GameState
 
-data Event = GotoPlay | Drag (Maybe (Strip, DD.Action))
+data Event = GotoPlay | Drag (Maybe (Strip, DD.Action)) | Resize (Int,Int)
 
 initialState : State
 initialState = Start
@@ -71,6 +82,9 @@ transparent : Color -> Color
 transparent color = 
     let col = toRgb color
     in rgba col.red col.green col.blue 1.0
+
+backgroundColor : Color
+backgroundColor = charcoal
 
 color : Strip -> Color 
 color strip = if strip.highlight
@@ -102,11 +116,15 @@ textColor strip = case strip.n of
   10 -> orange
   otherwise -> grey
 
-type Bounds   = { topLeft     : V.Vector Float
-                ,  topRight    : V.Vector Float
-                , bottomLeft  : V.Vector Float
-                , bottomRight : V.Vector Float
-                }
+type TLBR = { topLeft     : V.Vector Float
+            , bottomRight    : V.Vector Float
+            }
+
+type AllBounds a =  { a |   bottomLeft  : V.Vector Float
+                    ,       topRight : V.Vector Float
+                    }
+
+type Bounds   = AllBounds TLBR
 
 box : Strip -> Bounds
 box strip = let u = (-(gsz / 2), (gsz * tf strip.n) / 2)

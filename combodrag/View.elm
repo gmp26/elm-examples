@@ -5,7 +5,7 @@ module View (render, gridDelta, hover) where
 
 import Utils (tf, gridSize, gsz)
 import Model as M
-import Model (initialState)
+import Model (initialState, initialGame)
 import Text as T
 import Vector as V
 import Graphics.Input as GI
@@ -44,11 +44,49 @@ ruler w h =   [ rect (2*gsz) (tf h)
                 |> move (-gsz, 0)
             ] |> collage w h
 
+zoneElement : Int -> Int -> Float -> M.TLBR -> Element
+zoneElement w h n tlbr =
+    let rw = abs((V.x tlbr.bottomRight)-(V.x tlbr.topLeft))
+        rh = abs((V.y tlbr.bottomRight)-(V.y tlbr.topLeft))
+    in  [ rect rw rh 
+            |> filled white
+            |> move ((n-0.5)*gsz, 0)
+        ] |> collage w h
+
+leftZone : Int -> Int -> M.TLBR
+leftZone w h =
+    let tl = ( 0.3*(tf w), (0.5)*(tf h) )
+    in  { topLeft = tl
+        , bottomRight = ( gsz + fst tl - 2, (-0.5)*(tf h) )
+        }
+
+rightZone : Int -> Int -> M.TLBR
+rightZone = leftZone
+
+leftZoneElement : Int -> Int -> Element
+leftZoneElement w h = leftZone w h |> zoneElement w h 1
+
+rightZoneElement : Int -> Int -> Element
+rightZoneElement w h = rightZone w h |> zoneElement w h 2
+
+baseElement : Int -> Int -> Element
+baseElement w h =
+    let w2 = (tf w) / 2
+        h2 = (tf h) / 2
+        baseStyle = defaultLine
+    in  [   [ rect (tf w) (tf h)
+                |> filled darkGrey
+            , segment (-w2, h2) (w2, h2) 
+                |> traced baseStyle
+            ]   |> group
+                |> move (0, -h2 - (8 * gsz))
+        ] |> collage w h
+          |> opacity 0.7
 
 background : Int -> Int -> Element
 background w h =
     let hf = tf h 
-    in  [ rect (tf w) hf |> filled (grey)
+    in  [ rect (tf w) hf |> filled (M.backgroundColor)
         ]   |> collage w h
 
 bannerStyle : T.Style
@@ -64,8 +102,8 @@ overlay : M.Strip -> Int -> Element
 overlay strip _ =   let isz = gridSize - 3
                         osz = gridSize - 2
                     in spacer isz isz
-                        |> color white
-                        |> opacity 0.3
+                        |> color white -- (if strip.n==7 then charcoal else white)
+                        |> opacity (if strip.n==7 then 0.5 else 0.3)
                         |> width (osz-3)
                         |> height (osz-3)
                         |> container (osz) (osz+2) middle
@@ -101,25 +139,40 @@ stripForm strip = draggable strip
                     |> toForm
                     |> move (strip.loc)
 
-renderGame : (Int, Int) -> M.GameState -> Element
-renderGame (w,h) gs = gs.strips
+renderGame : Int -> Int -> M.GameState -> Element
+renderGame w h gs = gs.strips
                         |> map stripForm
                         |> collage w h 
 
+
+
 render : (Int,Int) -> M.State -> Element
-render (w,h) state = case state of
-    M.Start     ->  flow outward 
-                [ background w h
-                , toText "Click to Start"
-                    |> T.style bannerStyle
-                    |> centered
-                    |> container w h middle
-                ]
-    M.Play gs   ->  flow outward 
-                [ background w h
-                , ruler w h
-                , renderGame (w,h) gs
-                ]
+render (w,h) state = 
+    let 
+        f = (tf w)/640
+        gw = 640
+        gh = 960
+    in  [   (case state of
+                M.Start     ->  flow outward 
+                                    [ background gw gh
+                                    , toText "Click to Start"
+                                        |> T.style bannerStyle
+                                        |> centered
+                                        |> container gw gh middle
+                                    ]
+                M.Play gs   ->  flow outward 
+                                    [ background gw gh
+                                    , leftZoneElement gw gh
+                                    , rightZoneElement gw gh
+                                    , baseElement gw gh
+                                    , renderGame gw gh gs
+                                    ]
+            )
+                |> toForm
+                |> scale f
+        ] |> collage w h  
+
+
 
 
 
@@ -130,5 +183,5 @@ render (w,h) state = case state of
 
 main : Element
 main = 
-    let testDraw  = { strips = ([1..10] |> map M.testStrip), reached = [], stacks = []}
+    let testDraw  = {initialGame |  strips <- ([1..10] |> map M.testStrip) }
     in render (500,500) <| M.Play testDraw

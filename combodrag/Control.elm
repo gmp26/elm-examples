@@ -172,13 +172,14 @@ stopDrag strip gs =
 ----------------
 
 update : M.Event -> State -> State
-update event state = case state of
+update event state = case watch "state" <| state of
     M.Start     -> M.Play M.initialGame
 
     M.Play gs   -> case watch "event" event of
-        M.Drag (Just (strip, DD.Lift))           -> M.Play <| startDrag strip gs
-        M.Drag (Just (strip, DD.MoveBy delta))   -> M.Play <| drag strip delta gs
-        M.Drag (Just (strip, DD.Release))        -> M.Play <| stopDrag strip gs
+        M.Drag (Just (strip, DD.Lift))          -> M.Play <| startDrag strip gs
+        M.Drag (Just (strip, DD.MoveBy delta))  -> M.Play <| drag strip delta gs
+        M.Drag (Just (strip, DD.Release))       -> M.Play <| stopDrag strip gs
+        M.Resize (w,h)                          -> M.Play <| {gs| w <- w, h <- h}
         _   -> state
 
 

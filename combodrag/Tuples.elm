@@ -9,7 +9,7 @@ reachables' : [Digit] -> [Int]
 reachables' digits = 
     case digits of
         []              ->  []
-        (x :: [])       ->  [x]
+        [x]       ->  [x]
         (x :: y :: zs)  ->
             let reachables' = reachables (y :: zs)
                 listof x = repeat (length reachables') x

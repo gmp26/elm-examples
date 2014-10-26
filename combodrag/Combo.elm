@@ -16,8 +16,10 @@ dragSignal = (\dd -> M.Drag dd) <~ DD.trackMultiple Nothing hover.signal
 
 -- there may be a clash here...
 eventSignal : Signal M.Event
-eventSignal = merges    [ dragSignal
-                        ]
+eventSignal = merges    [ dragSignal, resizeSignal ]
+
+resizeSignal : Signal M.Event
+resizeSignal = (\p -> M.Resize p) <~ Window.dimensions
 
 main : Signal Element
 main = W.render <~ Window.dimensions ~ foldp C.update M.initialState eventSignal

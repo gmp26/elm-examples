@@ -1,0 +1,27 @@
+<html>
+ 
+  <head>
+    <title>Embedded Combo</title>
+    <script type="text/javascript" src="http://elm-lang.org/elm-runtime.js"></script>
+    <script type="text/javascript" src="build/Combo.js"></script>
+	  <style>
+	  #combo, #combo div, #combo canvas {
+	  	overflow :auto;
+	  } 
+  </style>
+
+  </head>
+ 
+
+  <body>
+    <h1>Combo</h1>
+    <div id="combo" style="width:320px; height:480px; "></div>
+    <h1>Text below</h1>
+  </body>
+ 
+  <script type="text/javascript">
+    var comboDiv = document.getElementById('combo');
+    Elm.embed(Elm.Combo, comboDiv);
+  </script>
+ 
+</html>
